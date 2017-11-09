@@ -13,5 +13,99 @@
       <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
       <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
     </Filter>
+    <Filter Include="common">
+      <UniqueIdentifier>{45b55923-63d5-45eb-8934-2f2e454529a0}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="common\inc">
+      <UniqueIdentifier>{c3557e9a-6c3e-4990-881c-b2831a1c4058}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="common\src">
+      <UniqueIdentifier>{02487f5d-9101-4cce-beb2-e89362b251b3}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="common\inc\imgui">
+      <UniqueIdentifier>{2248ee79-e82f-48e6-b326-7062e976adaa}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="main.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="common\inc\FlyCap2CVWrapper.h">
+      <Filter>common\inc</Filter>
+    </ClInclude>
+    <ClInclude Include="common\inc\GLImage.h">
+      <Filter>common\inc</Filter>
+    </ClInclude>
+    <ClInclude Include="common\inc\OpenGLHeader.h">
+      <Filter>common\inc</Filter>
+    </ClInclude>
+    <ClInclude Include="common\inc\Shader.h">
+      <Filter>common\inc</Filter>
+    </ClInclude>
+    <ClInclude Include="common\inc\imgui\glfw3native.h">
+      <Filter>common\inc\imgui</Filter>
+    </ClInclude>
+    <ClInclude Include="common\inc\imgui\imconfig.h">
+      <Filter>common\inc\imgui</Filter>
+    </ClInclude>
+    <ClInclude Include="common\inc\imgui\imgui.h">
+      <Filter>common\inc\imgui</Filter>
+    </ClInclude>
+    <ClInclude Include="common\inc\imgui\imgui_impl_glfw_gl3.h">
+      <Filter>common\inc\imgui</Filter>
+    </ClInclude>
+    <ClInclude Include="common\inc\imgui\imgui_internal.h">
+      <Filter>common\inc\imgui</Filter>
+    </ClInclude>
+    <ClInclude Include="common\inc\imgui\stb_rect_pack.h">
+      <Filter>common\inc\imgui</Filter>
+    </ClInclude>
+    <ClInclude Include="common\inc\imgui\stb_textedit.h">
+      <Filter>common\inc\imgui</Filter>
+    </ClInclude>
+    <ClInclude Include="common\inc\imgui\stb_truetype.h">
+      <Filter>common\inc\imgui</Filter>
+    </ClInclude>
+    <ClInclude Include="common\inc\OpenCVHeader.h">
+      <Filter>common\inc</Filter>
+    </ClInclude>
+    <ClInclude Include="OpenGLWindow.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="ControlWindow.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="ProjectorWindow.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="main.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="common\inc\imgui\imgui.cpp">
+      <Filter>common\inc\imgui</Filter>
+    </ClCompile>
+    <ClCompile Include="common\inc\imgui\imgui_demo.cpp">
+      <Filter>common\inc\imgui</Filter>
+    </ClCompile>
+    <ClCompile Include="common\inc\imgui\imgui_draw.cpp">
+      <Filter>common\inc\imgui</Filter>
+    </ClCompile>
+    <ClCompile Include="common\inc\imgui\imgui_impl_glfw_gl3.cpp">
+      <Filter>common\inc\imgui</Filter>
+    </ClCompile>
+    <ClCompile Include="common\src\FlyCap2CVWrapper.cpp">
+      <Filter>common\src</Filter>
+    </ClCompile>
+    <ClCompile Include="common\src\Shader.cpp">
+      <Filter>common\src</Filter>
+    </ClCompile>
+    <ClCompile Include="ControlWindow.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="ProjectorWindow.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
 </Project>
