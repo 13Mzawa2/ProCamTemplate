@@ -21,7 +21,7 @@ void setup()
 	}
 	//	各ウィンドウの初期化
 	controlWindow.create("Main Window", camsz, glm::uvec2(100, 100));
-	projectorWindow.create("Projector Window", glm::uvec2(1024, 768), glm::uvec2(1920, 0), false);
+	controlWindow.projectorWindow.create("Projector Window", glm::uvec2(1024, 768), glm::uvec2(1920, 0), false);
 	glfwMakeContextCurrent(controlWindow.window);
 
 	//	GLEWの初期化（glfwMakeContextCurrent()呼出し後でないと失敗する）
@@ -32,24 +32,24 @@ void setup()
 	}
 	//	GLEW初期化後の初期化
 	controlWindow.init();
-	projectorWindow.init();
+	controlWindow.projectorWindow.init();
 }
 
 int mainLoop()
 {
 	controlWindow.update();
-	projectorWindow.update();
+	controlWindow.projectorWindow.update();
 
 	controlWindow.draw();
-	projectorWindow.draw();
 	controlWindow.drawGUI();
+	controlWindow.projectorWindow.draw();
 
 	controlWindow.swapBuffers();
-	projectorWindow.swapBuffers();
+	controlWindow.projectorWindow.swapBuffers();
 
 	//	Quit Program
 	if (glfwGetKey(controlWindow.window, GLFW_KEY_ESCAPE) == GLFW_PRESS		//	Escキー
-		|| glfwGetKey(projectorWindow.window, GLFW_KEY_ESCAPE) == GLFW_PRESS
+		|| glfwGetKey(controlWindow.projectorWindow.window, GLFW_KEY_ESCAPE) == GLFW_PRESS
 		|| glfwWindowShouldClose(controlWindow.window)) {			//	ウィンドウの閉じるボタン
 		return EXIT_FAILURE;
 	}
@@ -61,5 +61,5 @@ int mainLoop()
 void release()
 {
 	controlWindow.close();
-	projectorWindow.close();
+	controlWindow.projectorWindow.close();
 }

@@ -12,12 +12,16 @@ void ControlWindow::init(void)
 	baseInit();
 	ImGui_ImplGlfwGL3_Init(window, true);	//	imgui描画ウィンドウの設定
 
+	glfwSetInputMode(window, GLFW_STICKY_MOUSE_BUTTONS, GL_TRUE);
+}
+
+void ControlWindow::update(void)
+{
+	cameraImg = flycap.readImage();
 }
 
 void ControlWindow::draw(void)
 {
-	cv::Mat cameraImg = flycap.readImage();
-
 	glfwMakeContextCurrent(window);
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 

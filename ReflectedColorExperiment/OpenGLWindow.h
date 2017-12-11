@@ -94,6 +94,16 @@ public:
 		glfwSwapBuffers(window);
 	}
 
+	void hide()
+	{
+		glfwHideWindow(window);
+	}
+
+	void show()
+	{
+		glfwShowWindow(window);
+	}
+
 	//	•Â‚¶‚é‚Æ‚«‚Ìˆ—
 	void close()
 	{
