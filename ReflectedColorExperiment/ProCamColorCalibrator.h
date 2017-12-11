@@ -93,6 +93,9 @@ public:
 	double fit(std::vector<std::vector<cv::Vec3d>> _patchColors, std::vector<cv::Vec3d> _lightColors);
 	//	パラメータの表示
 	void showParams();
+	//	パラメータベクトルのロード
+	void load(cv::String path);
+	void save(cv::String path);
 
 	//	反射率行列に関する計算
 	//

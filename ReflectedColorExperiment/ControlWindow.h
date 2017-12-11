@@ -11,6 +11,9 @@
 class ControlWindow : public OpenGLWindow
 {
 public:
+	//===========================================
+	//	Interfaces
+	//===========================================
 	FlyCap2CVWrapper flycap;
 	cv::Mat cameraImg;
 	cv::Mat drawImg;
@@ -18,9 +21,18 @@ public:
 	ProjectorWindow projectorWindow;
 	ColorChecker cc;
 	ProCamColorCalibrator calibrator;
+
+	//===========================================
+	//	Flags
+	//===========================================
 	bool show_test_window = false;
 	bool show_crop_popup = false;
 	bool clopping_mode = false;
+
+	//===========================================
+	//	Import file paths
+	//===========================================
+	static const std::string colorProfilePath;
 
 	void cameraInit(void);
 	void init(void);
@@ -29,3 +41,4 @@ public:
 	void drawGUI(void);
 	void close(void);
 };
+

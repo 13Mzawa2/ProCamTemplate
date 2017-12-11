@@ -1,5 +1,7 @@
 #include "ControlWindow.h"
 
+const std::string ControlWindow::colorProfilePath = "./data/colorProfile.xml";
+
 void ControlWindow::cameraInit(void)
 {
 	//	カメラ設定
@@ -99,15 +101,28 @@ void ControlWindow::drawGUI(void)
 				cv::imshow("ColorChecker Image", cc.drawPatches(cc.CCPatches));
 			}
 		}
-		//	ProCamキャリブレーション(クロッピング後に選択可能)
-		if (!clopping_mode && !cc.corners.empty()) {
-			if (ImGui::Button("Start Calibration")) {
-				projectorWindow.hide();
-				cv::Point pos(projectorWindow.winPos[0], projectorWindow.winPos[1]);
-				calibrator.calibrate(flycap, cv::Rect(pos, projectorWindow.projSize), cc);
-				projectorWindow.show();
+		//	キャリブレーション
+		if (ImGui::CollapsingHeader("Calibration")) {
+			//	データの読み込み・書き込み
+			if (ImGui::Button("Load")) {
+				calibrator.load(colorProfilePath);
+				calibrator.showParams();
+			}
+			ImGui::SameLine();
+			if (ImGui::Button("Save") && calibrator.calibrated) {
+				calibrator.save(colorProfilePath);
+			}
+			//	ProCamキャリブレーション(クロッピング後に選択可能)
+			if (!clopping_mode && !cc.corners.empty()) {
+				if (ImGui::Button("Start Calibration")) {
+					projectorWindow.hide();
+					cv::Point pos(projectorWindow.winPos[0], projectorWindow.winPos[1]);
+					calibrator.calibrate(flycap, cv::Rect(pos, projectorWindow.projSize), cc);
+					projectorWindow.show();
+				}
 			}
 		}
+
 		ImGui::End();
 	}
 

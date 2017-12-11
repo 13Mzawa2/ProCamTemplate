@@ -146,6 +146,41 @@ void ProCamColorCalibrator::showParams()
 		<< "M = \n" << colorConvertMat() << std::endl;
 }
 
+void ProCamColorCalibrator::load(cv::String path)
+{
+	cv::Mat p;
+	cv::FileStorage fs(path, cv::FileStorage::READ);
+	if (fs.isOpened()) {
+		fs["param_vec"] >> p;
+
+		//	cv::Mat -> double[]
+		p.forEach<double>([&](double &x, const int pos[2])->void {
+			params[pos[1]] = x;
+		});
+		calibrated = true;
+	}
+	else {
+		std::cout << "ファイルパスを確認してください: " << path << std::endl;
+	}
+}
+
+void ProCamColorCalibrator::save(cv::String path)
+{
+	if (calibrated) {
+		//	double[] -> cv::Mat
+		cv::Mat p(1, 21, CV_64FC1);
+		p.forEach<double>([&](double &x, const int pos[2]) -> void {
+			x = params[pos[1]];
+		});
+
+		cv::FileStorage fs(path, cv::FileStorage::WRITE);
+		if (fs.isOpened()) {
+			fs << "param_vec" << p;
+			std::cout << "saved at " << path << std::endl;
+		}
+	}
+}
+
 void ProCamColorCalibrator::getReflectanceMatrices(std::vector<std::vector<cv::Vec3d>> _patchColors, std::vector<cv::Vec3d> _lightColors, std::vector<cv::Mat>& _refMats)
 {
 	if (_patchColors.empty() || _lightColors.empty()) return;
