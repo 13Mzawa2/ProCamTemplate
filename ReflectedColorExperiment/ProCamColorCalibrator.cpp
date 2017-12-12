@@ -17,11 +17,21 @@ void ProCamColorCalibrator::paramInit()
 	for (int i = 0; i < 21; i++) {
 		params[i] = 0;
 	}
-	calibrated = false;
+	model_calibrated = false;
+	reflectance_calibrated = false;
+	matPCA.clear();
 }
 
 void ProCamColorCalibrator::calibrate(FlyCap2CVWrapper &flycap, cv::Rect projArea, ColorChecker cc)
 {
+	////	OpenCVの仕様確認
+	//cv::Mat m0 = (cv::Mat_<double>(3, 3) << 1, 2, 3, 4, 5, 6, 7, 8, 9);
+	//std::cout << m0 << std::endl;
+	//auto m0_diag = cv::Mat::diag(m0.diag(0));
+	//std::cout << m0_diag << std::endl;
+	//auto m1 = m0 - m0_diag;
+	//std::cout << m1 << std::endl;
+
 	//	setup
 	cv::Mat camImg;
 	cv::Mat projImg(projArea.size(), CV_8UC3);
@@ -67,6 +77,7 @@ void ProCamColorCalibrator::calibrate(FlyCap2CVWrapper &flycap, cv::Rect projAre
 	}
 	//	パラメータ計算開始
 	std::thread t1([&] { fit(patchColors, projColors); });
+
 	
 	// 撮影パッチの再確認(for debugging)
 	for (auto i = 0; i < patchImgs.size(); i++) {
@@ -85,6 +96,16 @@ void ProCamColorCalibrator::calibrate(FlyCap2CVWrapper &flycap, cv::Rect projAre
 	cv::destroyWindow("cv_patch");
 
 	t1.join();	//	スレッドt1の処理が終わるまで待機
+
+	//	反射率行列の計算（パラメータ計算後に行なわれる）
+	std::vector<cv::Mat> reflectances;
+	cv::Mat matJD;
+	std::vector<cv::Mat> matPC;
+	getReflectanceMatrices(patchColors, projColors, reflectances);
+	jointDiagonalization(reflectances, matJD);
+	principalMatrices(reflectances, matPC);
+	
+	reflectance_calibrated = true;
 }
 
 double ProCamColorCalibrator::fit(std::vector<std::vector<cv::Vec3d>> _patchColors, std::vector<cv::Vec3d> _lightColors)
@@ -126,10 +147,10 @@ double ProCamColorCalibrator::fit(std::vector<std::vector<cv::Vec3d>> _patchColo
 	param.forEach<double>([&](double &p, const int pos[2])->void {
 		params[pos[1]] = p;
 	});
-	calibrated = true;
 
 	//	最適化結果の表示
 	showParams();
+	model_calibrated = true;
 
 	return 0.0;
 }
@@ -157,7 +178,7 @@ void ProCamColorCalibrator::load(cv::String path)
 		p.forEach<double>([&](double &x, const int pos[2])->void {
 			params[pos[1]] = x;
 		});
-		calibrated = true;
+		model_calibrated = true;
 	}
 	else {
 		std::cout << "ファイルパスを確認してください: " << path << std::endl;
@@ -166,7 +187,7 @@ void ProCamColorCalibrator::load(cv::String path)
 
 void ProCamColorCalibrator::save(cv::String path)
 {
-	if (calibrated) {
+	if (model_calibrated) {
 		//	double[] -> cv::Mat
 		cv::Mat p(1, 21, CV_64FC1);
 		p.forEach<double>([&](double &x, const int pos[2]) -> void {
@@ -183,7 +204,7 @@ void ProCamColorCalibrator::save(cv::String path)
 
 void ProCamColorCalibrator::getReflectanceMatrices(std::vector<std::vector<cv::Vec3d>> _patchColors, std::vector<cv::Vec3d> _lightColors, std::vector<cv::Mat>& _refMats)
 {
-	if (_patchColors.empty() || _lightColors.empty()) return;
+	if (_patchColors.empty() || _lightColors.empty() || !model_calibrated) return;
 	
 	_refMats.clear();
 	//	パッチ番号毎に計算
@@ -193,21 +214,31 @@ void ProCamColorCalibrator::getReflectanceMatrices(std::vector<std::vector<cv::V
 			patchColors(3, _lightColors.size(), CV_64FC1),
 			R, Rt;
 		for (int lightNum = 0; lightNum < _lightColors.size(); lightNum++) {
+			//	線形化
+			auto patchLinear = linearizeCam(_patchColors[lightNum][patchNum]);
+			auto lightLinear = linearizePro(_lightColors[lightNum]);
+			//	カメラ色空間に変更
+			cv::Vec3d Cp = reflectProCam(lightLinear, cv::Vec3d(1, 1, 1));
 			for (int j = 0; j < 3; j++) {
-				lightColors.at<double>(j, lightNum) = _lightColors[lightNum][j];
-				patchColors.at<double>(j, lightNum) = _patchColors[lightNum][patchNum][j];
+				lightColors.at<double>(j, lightNum) = Cp[j];
+				patchColors.at<double>(j, lightNum) = patchLinear[j];
 			}
 		}
 		//	線形最小二乗法でRを求める
 		//	patches = R * lights -> patches_t = lights_t * R_t
-		cv::solve(lightColors.t(), patchColors.t(), Rt);
+		cv::solve(lightColors.t(), patchColors.t(), Rt, cv::DECOMP_SVD);
 		R = Rt.t();
 		_refMats.push_back(R);
 	}
+	std::cout << "R0 = \n" << _refMats[3] << std::endl;
+	std::cout << "R1 = \n" << _refMats[4] << std::endl;
+	std::cout << "R2 = \n" << _refMats[5] << std::endl;
 }
 
-void ProCamColorCalibrator::jointDiagonalization(std::vector<cv::Mat> _reflectances, cv::Mat & matJD)
+void ProCamColorCalibrator::jointDiagonalization(std::vector<cv::Mat> _reflectances, cv::Mat & _matJD)
 {
+	if (_reflectances.empty()) return;
+
 	//	同時対角化行列Tの初期値
 	//	R0 = u*w*vt = P^-1 D P
 	auto R0 = _reflectances[0];
@@ -220,13 +251,13 @@ void ProCamColorCalibrator::jointDiagonalization(std::vector<cv::Mat> _reflectan
 		cv::Mat _Tinv = _T.inv();
 		for (auto M : Ms) {
 			auto M1 = (_Tinv*M*_T).t();
-			auto M2 = _Tinv*M*_T - (_Tinv*M*_T).diag(0);	//	TODO:ここの計算を確認
+			auto M2 = _Tinv*M*_T - cv::Mat::diag((_Tinv*M*_T).diag(0));
 			M_sum += M1*M2 - M2*M1;
 		}
 		auto dJ = 2.0*_T*M_sum;
 		return dJ;
 	};
-	
+
 	//	最小化
 	auto Ti = T0.clone();
 	auto T_new = cv::Mat::eye(3, 3, CV_64FC1);
@@ -235,7 +266,41 @@ void ProCamColorCalibrator::jointDiagonalization(std::vector<cv::Mat> _reflectan
 		T_new = T_old - 0.01 / cv::norm(nablaJ(T_old, _reflectances)) * nablaJ(T_old, _reflectances);
 		Ti = T_new;
 	}
-	matJD = Ti.clone();
+	_matJD = Ti.clone();
+	matJD = _matJD.clone();
+
+	//	同時対角化できているか確認
+	std::cout << "T = " << matJD << std::endl;
+	std::cout << "T^-1 R0 T = \n" << matJD.inv() *_reflectances[3] * matJD << std::endl;
+	std::cout << "T^-1 R1 T = \n" << matJD.inv() *_reflectances[4] * matJD << std::endl;
+	std::cout << "T^-1 R2 T = \n" << matJD.inv() *_reflectances[5] * matJD << std::endl;
+}
+
+void ProCamColorCalibrator::principalMatrices(std::vector<cv::Mat> _reflectances, std::vector<cv::Mat>& _matPC)
+{
+	//	反射率行列を行ベクトルに変形
+	if (_reflectances.size() < 3) return;
+
+	cv::Mat rvecs(_reflectances.size(), 9, CV_64FC1);
+	for (int i = 0; i < rvecs.rows; i++) {
+		for (int j = 0; j < 9; j++) {
+			rvecs.at<double>(i, j) = _reflectances[i].at<double>(j);
+		}
+	}
+	//	SVD
+	cv::SVD svd(rvecs, cv::SVD::FULL_UV);
+	std::cout << "SVD Result" << std::endl;
+	std::cout << "Singular Value = \n" << svd.w << std::endl;
+	//std::cout << "components = \n" << svd.vt << std::endl;
+
+	//	上位3主成分を取り出す
+	_matPC.clear();
+	std::cout << "components = \n";
+	for (int i = 0; i < 3; i++) {
+		_matPC.push_back(svd.vt.row(i).reshape(1, 3));
+		std::cout << _matPC.back() << std::endl;
+	}
+	matPCA = _matPC;
 }
 
 cv::Vec3d ProCamColorCalibrator::linearizePro(const double * x, cv::Vec3d Ip)

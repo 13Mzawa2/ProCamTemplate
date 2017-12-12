@@ -13,13 +13,17 @@
 class ProCamColorCalibrator
 {
 private:
+	//	モデル式のパラメータ
 	//	[0 - 2] gamma_P
 	//	[3 - 5] gamma_C
 	//	[6 - 8] C_0
 	//	[9 - 11] C_th
 	//	[12 - 20] M
 	double params[21];
-
+	
+	//	反射率推定のパラメータ
+	std::vector<cv::Mat> matPCA;
+	cv::Mat matJD, matJDinv;
 
 	//	最小化ソルバ用
 	//	パラメータの解釈
@@ -62,8 +66,8 @@ private:
 
 
 public:
-	bool calibrated = false;
-
+	bool model_calibrated = false;		//	モデル式パラメータが確定されたときにtrue
+	bool reflectance_calibrated = false;
 
 	ProCamColorCalibrator();
 	~ProCamColorCalibrator();
@@ -97,11 +101,27 @@ public:
 	void load(cv::String path);
 	void save(cv::String path);
 
-	//	反射率行列に関する計算
+	//	反射率行列に関する計算（モデル式パラメータを求めた後に利用可能）
 	//
 	//	各カラーパッチの反射率行列の最小二乗解を得る
 	void getReflectanceMatrices(std::vector<std::vector<cv::Vec3d>> _patchColors, std::vector<cv::Vec3d> _lightColors, std::vector<cv::Mat> &_refMats);
 	//	同時対角化
-	void jointDiagonalization(std::vector<cv::Mat> _reflectances, cv::Mat &matJD);
+	void jointDiagonalization(std::vector<cv::Mat> _reflectances, cv::Mat &_matJD);
+	//	主成分行列
+	void principalMatrices(std::vector<cv::Mat> _reflectances, std::vector<cv::Mat> &_matPC);
+
+	//	モデル式による反射色推定
+	//	@param
+	//		camColor: 現在のカメラ撮像の色(BGR, 0-255)
+	//		projColor: 現在投影中のプロジェクタ投影像の色(BGR, 0-255)
+	//		light: 反射色を推定したいプロジェクタ投影像の色(BGR, 0-255) default = (255,255,255)
+	//	@return　光源lightの下での推定反射色
+	//
+	//	反射率行列の対角性を仮定したモデル
+	cv::Vec3d estimateColorDiag(cv::Vec3d camColor, cv::Vec3d projColor, cv::Vec3d light = cv::Vec3d(255., 255., 255.));
+	//	主成分行列を利用したモデル
+	cv::Vec3d estimateColorPCA(cv::Vec3d camColor, cv::Vec3d projColor, cv::Vec3d light = cv::Vec3d(255., 255., 255.));
+	//	同時対角化を利用したモデル
+	cv::Vec3d estimateColorJD(cv::Vec3d camColor, cv::Vec3d projColor, cv::Vec3d light = cv::Vec3d(255., 255., 255.));
 };
 
