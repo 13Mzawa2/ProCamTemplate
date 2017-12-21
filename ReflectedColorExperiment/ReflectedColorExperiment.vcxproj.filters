@@ -84,6 +84,12 @@
     <ClInclude Include="ProCamColorCalibrator.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="ProCamGeometryCalibrator.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="GrayCodePatternProjection.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="main.cpp">
@@ -117,6 +123,12 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="ProCamColorCalibrator.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="ProCamGeometryCalibrator.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="GrayCodePatternProjection.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

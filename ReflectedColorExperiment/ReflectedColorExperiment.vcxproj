@@ -120,8 +120,10 @@
     <ClCompile Include="common\src\FlyCap2CVWrapper.cpp" />
     <ClCompile Include="common\src\Shader.cpp" />
     <ClCompile Include="ControlWindow.cpp" />
+    <ClCompile Include="GrayCodePatternProjection.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="ProCamColorCalibrator.cpp" />
+    <ClCompile Include="ProCamGeometryCalibrator.cpp" />
     <ClCompile Include="ProjectorWindow.cpp" />
   </ItemGroup>
   <ItemGroup>
@@ -140,9 +142,11 @@
     <ClInclude Include="common\inc\OpenGLHeader.h" />
     <ClInclude Include="common\inc\Shader.h" />
     <ClInclude Include="ControlWindow.h" />
+    <ClInclude Include="GrayCodePatternProjection.h" />
     <ClInclude Include="main.h" />
     <ClInclude Include="OpenGLWindow.h" />
     <ClInclude Include="ProCamColorCalibrator.h" />
+    <ClInclude Include="ProCamGeometryCalibrator.h" />
     <ClInclude Include="ProjectorWindow.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
