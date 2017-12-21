@@ -181,7 +181,7 @@ void FlyCap2CVWrapper::open()
 	autoExposure(false, -0.67);
 	autoSaturation(false, 100.0f);
 	autoShutter(false, 8.323f);
-	autoGain(false, 8.6);
+	autoGain(false, 15.3);
 
 	flycamError = flycam.StartCapture();
 	if (flycamError == PGRERROR_ISOCH_BANDWIDTH_EXCEEDED)

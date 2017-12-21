@@ -109,7 +109,7 @@ void ControlWindow::drawGUI(void)
 				calibrator.showParams();
 			}
 			ImGui::SameLine();
-			if (ImGui::Button("Save") && calibrator.calibrated) {
+			if (ImGui::Button("Save") && calibrator.model_calibrated) {
 				calibrator.save(colorProfilePath);
 			}
 			//	ProCamキャリブレーション(クロッピング後に選択可能)

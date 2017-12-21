@@ -1,6 +1,7 @@
 #include "ProCamColorCalibrator.h"
 #include <future>		//	非同期マルチスレッド処理
-
+#include <iostream>		//	csvファイル入出力
+#include <fstream>
 
 ProCamColorCalibrator::ProCamColorCalibrator()
 {
@@ -106,6 +107,9 @@ void ProCamColorCalibrator::calibrate(FlyCap2CVWrapper &flycap, cv::Rect projAre
 	principalMatrices(reflectances, matPC);
 	
 	reflectance_calibrated = true;
+
+	//	キャリブレーションのためのデータと結果の保存
+	writeCSV("./data/calib.csv", patchColors, projColors);
 }
 
 double ProCamColorCalibrator::fit(std::vector<std::vector<cv::Vec3d>> _patchColors, std::vector<cv::Vec3d> _lightColors)
@@ -179,6 +183,18 @@ void ProCamColorCalibrator::load(cv::String path)
 			params[pos[1]] = x;
 		});
 		model_calibrated = true;
+
+		matPCA.clear();
+		fs["matJD"] >> matJD;
+		matJDinv = matJD.inv();
+
+		cv::FileNode fn(fs["matPCA"]);
+		cv::Mat m;
+		fn["matPCA0"] >> m; matPCA.push_back(m);
+		fn["matPCA1"] >> m; matPCA.push_back(m);
+		fn["matPCA2"] >> m; matPCA.push_back(m);
+
+		reflectance_calibrated = true;
 	}
 	else {
 		std::cout << "ファイルパスを確認してください: " << path << std::endl;
@@ -197,6 +213,13 @@ void ProCamColorCalibrator::save(cv::String path)
 		cv::FileStorage fs(path, cv::FileStorage::WRITE);
 		if (fs.isOpened()) {
 			fs << "param_vec" << p;
+			if (reflectance_calibrated) {
+				fs << "matPCA" << "{"
+					<< "matPCA0" << matPCA[0]
+					<< "matPCA1" << matPCA[1]
+					<< "matPCA2" << matPCA[2] << "}";
+				fs << "matJD" << matJD;
+			}
 			std::cout << "saved at " << path << std::endl;
 		}
 	}
@@ -268,6 +291,7 @@ void ProCamColorCalibrator::jointDiagonalization(std::vector<cv::Mat> _reflectan
 	}
 	_matJD = Ti.clone();
 	matJD = _matJD.clone();
+	matJDinv = matJD.inv();
 
 	//	同時対角化できているか確認
 	std::cout << "T = " << matJD << std::endl;
@@ -301,6 +325,108 @@ void ProCamColorCalibrator::principalMatrices(std::vector<cv::Mat> _reflectances
 		std::cout << _matPC.back() << std::endl;
 	}
 	matPCA = _matPC;
+}
+
+cv::Vec3d ProCamColorCalibrator::estimateColorDiag(cv::Vec3d camColor, cv::Vec3d projColor, cv::Vec3d light)
+{
+	if (!model_calibrated) return cv::Vec3d(0, 0, 0);
+
+	auto C = linearizeCam(camColor);
+	auto Cp = reflectProCam(linearizePro(projColor), cv::Vec3d(1.0, 1.0, 1.0));
+	cv::Vec3d R_diag;
+	for (int i = 0; i < 3; i++) {
+		R_diag[i] = C[i] / MAX(Cp[i], 0.001);
+	}
+	auto C_est = reflectProCam(linearizePro(light), R_diag);
+	auto Ic = gammaCam(C_est);
+
+	return Ic;
+}
+
+cv::Vec3d ProCamColorCalibrator::estimateColorPCA(cv::Vec3d camColor, cv::Vec3d projColor, cv::Vec3d light)
+{
+	if (!reflectance_calibrated || !model_calibrated) return cv::Vec3d(0, 0, 0);
+
+	auto C = linearizeCam(camColor);
+	auto Cp = reflectProCam(linearizePro(projColor), cv::Vec3d(1.0, 1.0, 1.0));
+
+	cv::Mat R_pca, U(3,3,CV_64FC1);
+	for (int i = 0; i < 3; i++) {
+		for (int k = 0; k < 3; k++) {
+			cv::Vec3d r_ik = (cv::Vec3d)cv::Mat(matPCA[k].row(i));
+			double u_ik = r_ik[0] * Cp[0] + r_ik[1] * Cp[1] + r_ik[2] * Cp[2];
+			U.at<double>(i, k) = u_ik;
+		}
+	}
+	cv::Mat alpha_dst;
+	cv::solve(U, C, alpha_dst);
+	auto alpha = (cv::Vec3d)alpha_dst;
+	cv::Mat R = alpha[0] * matPCA[0] + alpha[1] * matPCA[1] + alpha[2] * matPCA[2];
+
+	auto C_est = reflectProCam(linearizePro(light), R);
+	auto Ic = gammaCam(C_est);
+
+	return Ic;
+}
+
+cv::Vec3d ProCamColorCalibrator::estimateColorJD(cv::Vec3d camColor, cv::Vec3d projColor, cv::Vec3d light)
+{
+	if (!reflectance_calibrated || !model_calibrated) return cv::Vec3d(0, 0, 0);
+
+	auto C = linearizeCam(camColor);
+	auto Cp = reflectProCam(linearizePro(projColor), cv::Vec3d(1.0, 1.0, 1.0));
+
+	cv::Vec3d C_d = cv::Vec3d(cv::Mat(matJDinv * cv::Mat(C)));
+	cv::Vec3d Cp_d = cv::Vec3d(cv::Mat(matJDinv * cv::Mat(Cp)));
+
+	cv::Vec3d D(C_d[0] / Cp_d[0], C_d[1] / Cp_d[1], C_d[2] / Cp_d[2]);
+	cv::Mat R = matJD * cv::Mat::diag(cv::Mat(D)) * matJDinv;
+
+	auto C_est = reflectProCam(linearizePro(light), R);
+	auto Ic = gammaCam(C_est);
+
+	return Ic;
+}
+
+void ProCamColorCalibrator::writeCSV(cv::String path, std::vector<std::vector<cv::Vec3d>> _camColors, std::vector<cv::Vec3d> _projColors)
+{
+	std::ofstream ofs(path);
+	if (ofs.is_open()) {
+		//	タイトル行
+		ofs << "lightB,lightG,lightR,";
+		for (int i = 0; i < ColorChecker::PATCH_NUM; i++) {
+			ofs << "CC" + std::to_string(i) + "_CamB,";
+			ofs << "CC" + std::to_string(i) + "_CamG,";
+			ofs << "CC" + std::to_string(i) + "_CamR,";
+			ofs << "CC" + std::to_string(i) + "_Est_diagB,";
+			ofs << "CC" + std::to_string(i) + "_Est_diagG,";
+			ofs << "CC" + std::to_string(i) + "_Est_diagR,";
+			ofs << "CC" + std::to_string(i) + "_Est_pcaB,";
+			ofs << "CC" + std::to_string(i) + "_Est_pcaG,";
+			ofs << "CC" + std::to_string(i) + "_Est_pcaR,";
+			ofs << "CC" + std::to_string(i) + "_Est_jdB,";
+			ofs << "CC" + std::to_string(i) + "_Est_jdG,";
+			ofs << "CC" + std::to_string(i) + "_Est_jdR,";
+		}
+		ofs << std::endl;
+
+		//	データ
+		for (int lightNum = 0; lightNum < _projColors.size(); lightNum++) {
+			auto Ip = _projColors[lightNum];
+			ofs << Ip[0] << "," << Ip[1] << "," << Ip[2] << ",";
+			for (int patchNum = 0; patchNum < ColorChecker::PATCH_NUM; patchNum++) {
+				auto Ic = _camColors[lightNum][patchNum];
+				ofs << Ic[0] << "," << Ic[1] << "," << Ic[2] << ",";
+				auto Ic_diag = estimateColorDiag(Ic, Ip);
+				ofs << Ic_diag[0] << "," << Ic_diag[1] << "," << Ic_diag[2] << ",";
+				auto Ic_pca = estimateColorPCA(Ic, Ip);
+				ofs << Ic_pca[0] << "," << Ic_pca[1] << "," << Ic_pca[2] << ",";
+				auto Ic_jd = estimateColorJD(Ic, Ip);
+				ofs << Ic_jd[0] << "," << Ic_jd[1] << "," << Ic_jd[2] << ",";
+			}
+			ofs << std::endl;
+		}
+	}
 }
 
 cv::Vec3d ProCamColorCalibrator::linearizePro(const double * x, cv::Vec3d Ip)

@@ -80,6 +80,8 @@ public:
 	cv::Vec3d C_0() { return C_0(params); };
 	cv::Vec3d C_th() { return C_th(params); };
 	cv::Mat colorConvertMat() { return colorConvertMat(params); };
+	std::vector<cv::Mat> getMatPCA() { return matPCA; }
+	cv::Mat getMatJD() { return matJD; }
 
 	//	モデル式
 	cv::Vec3d linearizePro(cv::Vec3d Ip) { return linearizePro(params, Ip); };
@@ -123,5 +125,11 @@ public:
 	cv::Vec3d estimateColorPCA(cv::Vec3d camColor, cv::Vec3d projColor, cv::Vec3d light = cv::Vec3d(255., 255., 255.));
 	//	同時対角化を利用したモデル
 	cv::Vec3d estimateColorJD(cv::Vec3d camColor, cv::Vec3d projColor, cv::Vec3d light = cv::Vec3d(255., 255., 255.));
+
+	//	キャリブレーション結果の書き出し
+	//
+	//	csvファイルに書き出し
+	//	|投影色BGR|撮影色BGR(1-24)|推定色BGR(diag,1-24)|推定色BGR(pca,1-24)|推定色BGR(jd,1-24)|
+	void writeCSV(cv::String path, std::vector<std::vector<cv::Vec3d>> _camColors, std::vector<cv::Vec3d> _projColors);
 };
 
