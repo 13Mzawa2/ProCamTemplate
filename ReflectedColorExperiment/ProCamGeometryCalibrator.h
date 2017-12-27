@@ -16,8 +16,11 @@ public:
 	~ProCamGeometryCalibrator();
 
 	//	キャリブレーション
-	void calibrate(FlyCap2CVWrapper flycap, cv::Rect projArea);
+	void calibrate(FlyCap2CVWrapper &flycap, cv::Rect projArea);
 	//	逆マップの作製
 	void getInverseProCamMap(cv::Size projectorSize, cv::Mat &invMapX, cv::Mat &invMapY);
+	//	マップの表示
+	cv::Mat coloredMap(cv::Mat mapX, cv::Mat mapY);
+	void showColoredMaps();
 };
 

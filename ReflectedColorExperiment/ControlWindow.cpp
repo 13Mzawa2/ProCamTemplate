@@ -71,60 +71,77 @@ void ControlWindow::drawGUI(void)
 	ImGui::Begin("Control GUI");
 	ImGui::Text("Application average %.3f ms / frame (%.1f FPS)", 
 		imgui_io.DeltaTime, imgui_io.Framerate);
-	if (ImGui::Button("ColorChecker")) show_crop_popup ^= true;
+	if (ImGui::Button("Calibration")) show_calib_popup ^= true;
 	ImGui::NewLine();
 	if (ImGui::Button("ImGui Demo Window")) show_test_window ^= true;
 	ImGui::End();
 
-	//	ColorCheckerを切り出す
-	if (show_crop_popup) {
+	//	キャリブレーション用GUI
+	if (show_calib_popup) {
 		ImGui::SetNextWindowSize(ImVec2(100, 100), ImGuiSetCond_FirstUseEver);
-		ImGui::Begin("ColorChecker GUI");
-		ImGui::Text(
-			"Please right click at the corner of ColorChecker (+)\n"
-			"1: upper-left (Brown)\n"
-			"2: lower-left (White)\n"
-			"3: lower-right (Black)\n"
-			"4: upper-right (Lime)");
-		if (ImGui::Button("Start")) {
-			//	ColorCheckerのコーナー位置の初期化
-			cc.corners.clear();
-			clopping_mode = true;
-		}
-		if (clopping_mode) {
-			ImGui::SameLine();
-			ImGui::Text("Now Clopping...");
-		}
-		//	クロッピング終了後のデータ表示
-		if (!clopping_mode && !cc.CCPatches.empty()) {
-			if (ImGui::Button("Show Patches")) {
-				cv::imshow("ColorChecker Image", cc.drawPatches(cc.CCPatches));
+		ImGui::Begin("Calibration GUI");
+		//	ColorCheckerによるカラーキャリブレーション
+		if (ImGui::CollapsingHeader("Color")) {
+			ImGui::Text(
+				"Please right click at the corner of ColorChecker (+)\n"
+				"1: upper-left (Brown)\n"
+				"2: lower-left (White)\n"
+				"3: lower-right (Black)\n"
+				"4: upper-right (Lime)");
+			if (ImGui::Button("Start")) {
+				//	ColorCheckerのコーナー位置の初期化
+				cc.corners.clear();
+				clopping_mode = true;
 			}
-		}
-		//	キャリブレーション
-		if (ImGui::CollapsingHeader("Calibration")) {
-			//	データの読み込み・書き込み
-			if (ImGui::Button("Load")) {
-				calibrator.load(colorProfilePath);
-				calibrator.showParams();
+			if (clopping_mode) {
+				ImGui::SameLine();
+				ImGui::Text("Now Clopping...");
 			}
-			ImGui::SameLine();
-			if (ImGui::Button("Save") && calibrator.model_calibrated) {
-				calibrator.save(colorProfilePath);
+			//	クロッピング終了後のデータ表示
+			if (!clopping_mode && !cc.CCPatches.empty()) {
+				if (ImGui::Button("Show Patches")) {
+					cv::imshow("ColorChecker Image", cc.drawPatches(cc.CCPatches));
+				}
 			}
-			//	ProCamキャリブレーション(クロッピング後に選択可能)
-			if (!clopping_mode && !cc.corners.empty()) {
-				if (ImGui::Button("Start Calibration")) {
-					projectorWindow.hide();
-					cv::Point pos(projectorWindow.winPos[0], projectorWindow.winPos[1]);
-					calibrator.calibrate(flycap, cv::Rect(pos, projectorWindow.projSize), cc);
-					projectorWindow.show();
+			//	キャリブレーション
+			if (ImGui::CollapsingHeader("ProCam Color Calibration")) {
+				//	データの読み込み・書き込み
+				if (ImGui::Button("Load")) {
+					calibrator.load(colorProfilePath);
+					calibrator.showParams();
+				}
+				ImGui::SameLine();
+				if (ImGui::Button("Save") && calibrator.model_calibrated) {
+					calibrator.save(colorProfilePath);
+				}
+				//	ProCamキャリブレーション(クロッピング後に選択可能)
+				if (!clopping_mode && !cc.corners.empty()) {
+					if (ImGui::Button("Start Calibration")) {
+						projectorWindow.hide();
+						cv::Point pos(projectorWindow.winPos[0], projectorWindow.winPos[1]);
+						calibrator.calibrate(flycap, cv::Rect(pos, projectorWindow.projSize), cc);
+						projectorWindow.show();
+					}
 				}
 			}
 		}
-
+		if (ImGui::CollapsingHeader("Geometry")) {
+			ImGui::Text(
+			"ProCam geometry calibration by Gray-Code Patterns\n"
+			);
+			if (ImGui::Button("Start Calibration")) {
+				projectorWindow.hide();
+				cv::Point pos(projectorWindow.winPos[0], projectorWindow.winPos[1]);
+				geocalib.calibrate(flycap, cv::Rect(pos, projectorWindow.projSize));
+				projectorWindow.show();
+			}
+			if (ImGui::Button("Show Maps")) {
+				geocalib.showColoredMaps();
+			}
+		}
 		ImGui::End();
 	}
+
 
 	//	ImGui Test Window (Demo) 参照用
 	if (show_test_window) {

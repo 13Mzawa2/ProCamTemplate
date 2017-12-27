@@ -7,6 +7,7 @@
 #include <FlyCap2CVWrapper.h>
 #include "ColorChecker.h"
 #include "ProCamColorCalibrator.h"
+#include "ProCamGeometryCalibrator.h"
 
 class ControlWindow : public OpenGLWindow
 {
@@ -21,12 +22,13 @@ public:
 	ProjectorWindow projectorWindow;
 	ColorChecker cc;
 	ProCamColorCalibrator calibrator;
+	ProCamGeometryCalibrator geocalib;
 
 	//===========================================
 	//	Flags
 	//===========================================
 	bool show_test_window = false;
-	bool show_crop_popup = false;
+	bool show_calib_popup = false;
 	bool clopping_mode = false;
 
 	//===========================================

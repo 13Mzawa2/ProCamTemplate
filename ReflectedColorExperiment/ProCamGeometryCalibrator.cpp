@@ -11,13 +11,12 @@ ProCamGeometryCalibrator::~ProCamGeometryCalibrator()
 {
 }
 
-void ProCamGeometryCalibrator::calibrate(FlyCap2CVWrapper flycap, cv::Rect projArea)
+void ProCamGeometryCalibrator::calibrate(FlyCap2CVWrapper &flycap, cv::Rect projArea)
 {
 	//	setup
 	cv::Mat camImg = flycap.readImage();
 	cv::Mat projImg(projArea.size(), CV_8UC3);
 	cv::namedWindow("cv_camera");
-	cv::namedWindow("cv_patch");
 	cv::namedWindow("cv_projector", cv::WINDOW_FREERATIO);
 	cv::moveWindow("cv_projector", projArea.x, projArea.y);
 	cv::setWindowProperty("cv_projector", cv::WND_PROP_FULLSCREEN, cv::WINDOW_FULLSCREEN);
@@ -58,21 +57,20 @@ void ProCamGeometryCalibrator::calibrate(FlyCap2CVWrapper flycap, cv::Rect projA
 	gcp.loadCapPatterns(captures);
 	gcp.decodePatterns();
 
-	//	result
-	gcp.showMaps();
 	//	save
 	mapCPX = gcp.mapX.clone();
 	mapCPY = gcp.mapY.clone();
-	calibrated = false;
+	calibrated = true;
 
 	//	calculate inverse map
 	getInverseProCamMap(projArea.size(), mapPCX, mapPCY);
 
+	//	show maps (psudo-colored, half-size)
+	showColoredMaps();
+
 	//	destroy windows
 	cv::destroyWindow("cv_camera");
 	cv::destroyWindow("cv_projector");
-	cv::destroyWindow("cv_patch");
-
 }
 
 void ProCamGeometryCalibrator::getInverseProCamMap(cv::Size projectorSize, cv::Mat & invMapX, cv::Mat & invMapY)
@@ -127,3 +125,49 @@ void ProCamGeometryCalibrator::getInverseProCamMap(cv::Size projectorSize, cv::M
 	invMapX = maskX.mul(invMapX);
 	invMapY = maskY.mul(invMapY);
 }
+
+cv::Mat ProCamGeometryCalibrator::coloredMap(cv::Mat mapX, cv::Mat mapY)
+{
+	cv::Mat coloredMap = cv::Mat::zeros(mapX.size(), CV_32FC3);
+
+	if (mapX.empty() || mapY.empty()) {
+		std::cout << "マップが入力されていません．" << std::endl;
+		return coloredMap;
+	}
+
+	//	マップ内数値の最大値・最小値を求める
+	double xmin, xmax, ymin, ymax;
+	cv::minMaxLoc(mapX, &xmin, &xmax);
+	cv::minMaxIdx(mapY, &ymin, &ymax);
+
+	coloredMap.forEach<cv::Vec3f>([&](cv::Vec3f &c, const int *p) -> void {
+		float x = mapX.at<float>(p[0], p[1]);
+		float y = mapY.at<float>(p[0], p[1]);
+		c[0] = x / xmax;	// Blue -> X
+		c[1] = y / ymax;	// Yellow -> Y
+		c[2] = y / ymax;
+	});
+	
+	//	表示用に変更
+	coloredMap.convertTo(coloredMap, CV_8UC3, 255, 0);
+
+	return coloredMap;
+}
+
+void ProCamGeometryCalibrator::showColoredMaps()
+{
+	if (!calibrated) {
+		std::cout << "先にキャリブレーションが必要です．" << std::endl;
+		return;
+	}
+	cv::Mat mapCP = coloredMap(mapCPX, mapCPY);
+	cv::resize(mapCP, mapCP, cv::Size(), 0.5, 0.5);
+	cv::imshow("map Pro from Cam", mapCP);
+	cv::Mat mapPC = coloredMap(mapPCX, mapPCY);
+	cv::resize(mapPC, mapPC, cv::Size(), 0.5, 0.5);
+	cv::imshow("map Cam from Pro", mapPC);
+	cv::waitKey();
+	cv::destroyWindow("map Pro from Cam");
+	cv::destroyWindow("map Cam from Pro");
+}
+
