@@ -24,8 +24,8 @@ public:
 	//	Pixel Buffer Object
 	//		ピクセルデータのやり取りの高速化に使用
 	//		Direct Memory Access (DMA)を用いてGPUとデータをやり取りするため，CPUサイクルに影響されずに高速転送できる
-	//	UNPACK: Frame Buffer -> PBO  glReadPixels()など
-	//	PACK: PBO -> Frame Buffer  glDrawPixels(), glTexSubImage2D()など
+	//	PACK: Frame Buffer -> PBO  glReadPixels()など
+	//	UNPACK: PBO -> Frame Buffer  glDrawPixels(), glTexSubImage2D()など
 	GLuint pbo;
 
 	GLTexture() {};

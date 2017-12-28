@@ -27,6 +27,9 @@ Change 20160119:
 ・コメント大幅追加
 ・GLSLをインライン化して外部ファイルを不要にした
 
+Change 20171228:
+・PBOによる高速化を図る（そんなに早くならなかった）
+
 *********************************************************/
 
 #pragma once
@@ -44,6 +47,15 @@ private:
 	GLuint image;	//	テクスチャオブジェクト
 	GLuint imageLoc;//	オブジェクトの場所
 	Shader s;		//	シェーダ
+
+	//	Pixel Buffer Object
+	//		ピクセルデータのやり取りの高速化に使用
+	//		Direct Memory Access (DMA)を用いてGPUとデータをやり取りするため，CPUサイクルに影響されずに高速転送できる
+	//	PACK: Frame Buffer -> PBO  glReadPixels()など
+	//	UNPACK: PBO -> Frame Buffer  glDrawPixels(), glTexSubImage2D()など
+	GLuint pbo;
+	int pbo_buffersize;
+
 	//	バーテックスシェーダ
 	const char *vertexSource =
 		"#version 330 core \n"
@@ -109,6 +121,13 @@ public:
 		glTexParameteri(GL_TEXTURE_RECTANGLE, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER);
 		glTexParameteri(GL_TEXTURE_RECTANGLE, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
 
+		// PBOの生成
+		pbo_buffersize = w*h * 3 * sizeof(GLubyte);
+		glGenBuffers(1, &pbo);
+		glBindBuffer(GL_PIXEL_UNPACK_BUFFER, pbo);
+		glBufferData(GL_PIXEL_UNPACK_BUFFER, pbo_buffersize, NULL, GL_STREAM_READ);
+		glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
+
 		//	シェーダのロード
 		s.initInlineGLSL(vertexSource, fragmentSource);
 		imageLoc = glGetUniformLocation(s.program, "image");
@@ -118,9 +137,29 @@ public:
 		glfwMakeContextCurrent(imgWindow);
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
+		//	PBOの指定
+		//	GPUのTextureObjectへの転送なのでUNPACK
+		glBindBuffer(GL_PIXEL_UNPACK_BUFFER, pbo);
+		//	CPUからPBOへの画像アップロード
+		//	GPUが処理を終えるまで待機状態に入るのを避けるため，NULLポインタで呼んだ後に
+		//	glMapBuffer()を呼ぶことで，強制的にメモリ領域を確保させる
+		glBufferData(GL_PIXEL_UNPACK_BUFFER, pbo_buffersize, 0, GL_STREAM_DRAW);
+		//	CPU領域にPBOを書き込み専用で展開
+		GLubyte* pboptr = (GLubyte*)glMapBufferARB(GL_PIXEL_UNPACK_BUFFER, GL_WRITE_ONLY);
+		if (pboptr) {
+			//	画像データをPBOへコピー
+			std::memcpy(pboptr, frame.data, pbo_buffersize);
+			//	マップの解除
+			glUnmapBuffer(GL_PIXEL_UNPACK_BUFFER);
+		}
+
 		// 切り出した画像をテクスチャに転送する
+		//	PBO指定状態でglTexSubImage2D()をデータポインタを渡さずに実行するとPBOから転送される
 		glBindTexture(GL_TEXTURE_RECTANGLE, image);
-		glTexSubImage2D(GL_TEXTURE_RECTANGLE, 0, 0, 0, frame.cols, frame.rows, GL_BGR, GL_UNSIGNED_BYTE, frame.data);
+		glTexSubImage2D(GL_TEXTURE_RECTANGLE, 0, 0, 0, frame.cols, frame.rows, GL_BGR, GL_UNSIGNED_BYTE, 0);
+		
+		//	PBOの指定を解除
+		glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
 
 		// シェーダプログラムの使用開始
 		s.enable();
