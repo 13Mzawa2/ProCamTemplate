@@ -123,6 +123,7 @@
     <ClCompile Include="GrayCodePatternProjection.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="ProCamColorCalibrator.cpp" />
+    <ClCompile Include="ProCamFeedback.cpp" />
     <ClCompile Include="ProCamGeometryCalibrator.cpp" />
     <ClCompile Include="ProjectorWindow.cpp" />
   </ItemGroup>
@@ -142,12 +143,18 @@
     <ClInclude Include="common\inc\OpenGLHeader.h" />
     <ClInclude Include="common\inc\Shader.h" />
     <ClInclude Include="ControlWindow.h" />
+    <ClInclude Include="FrameBufferObject.h" />
+    <ClInclude Include="GLTexture.h" />
     <ClInclude Include="GrayCodePatternProjection.h" />
     <ClInclude Include="main.h" />
     <ClInclude Include="OpenGLWindow.h" />
     <ClInclude Include="ProCamColorCalibrator.h" />
+    <ClInclude Include="ProCamFeedback.h" />
     <ClInclude Include="ProCamGeometryCalibrator.h" />
     <ClInclude Include="ProjectorWindow.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="VertexShader.glsl" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

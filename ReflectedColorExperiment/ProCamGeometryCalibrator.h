@@ -6,11 +6,11 @@
 class ProCamGeometryCalibrator
 {
 private:
-	cv::Mat mapCPX, mapCPY;		//	cam(x,y) ‚©‚çŒ©‚½ proj(x,y) ‚ğŠi”[isize = camSizej
-	cv::Mat mapPCX, mapPCY;		//	proj(x,y) ‚©‚çŒ©‚½ cam(x,y) ‚ğŠi”[ (size = projSize)
 
 public:
 	bool calibrated = false;
+	cv::Mat mapCPX, mapCPY;		//	cam(x,y) ‚©‚çŒ©‚½ proj(x,y) ‚ğŠi”[isize = camSizej
+	cv::Mat mapPCX, mapPCY;		//	proj(x,y) ‚©‚çŒ©‚½ cam(x,y) ‚ğŠi”[ (size = projSize)
 
 	ProCamGeometryCalibrator();
 	~ProCamGeometryCalibrator();

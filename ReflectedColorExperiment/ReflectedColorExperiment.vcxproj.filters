@@ -25,6 +25,9 @@
     <Filter Include="common\inc\imgui">
       <UniqueIdentifier>{2248ee79-e82f-48e6-b326-7062e976adaa}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Shader">
+      <UniqueIdentifier>{beff3717-60d1-4f4e-b63f-9c7fb4bb749e}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="main.h">
@@ -90,6 +93,15 @@
     <ClInclude Include="GrayCodePatternProjection.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="ProCamFeedback.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="GLTexture.h">
+      <Filter>common\inc</Filter>
+    </ClInclude>
+    <ClInclude Include="FrameBufferObject.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="main.cpp">
@@ -131,5 +143,13 @@
     <ClCompile Include="GrayCodePatternProjection.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="ProCamFeedback.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="VertexShader.glsl">
+      <Filter>Shader</Filter>
+    </None>
   </ItemGroup>
 </Project>
