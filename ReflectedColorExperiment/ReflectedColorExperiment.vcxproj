@@ -154,6 +154,8 @@
     <ClInclude Include="ProjectorWindow.h" />
   </ItemGroup>
   <ItemGroup>
+    <None Include="Frag_Remover.glsl" />
+    <None Include="Frag_Generator.glsl" />
     <None Include="VertexShader.glsl" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

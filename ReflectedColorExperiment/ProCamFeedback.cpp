@@ -31,8 +31,9 @@ void ProCamFeedback::setupPro()
 	glfwMakeContextCurrent(projWindow);
 
 	removedTex.create(GLTexture::TextureType::TYPE_8UC3, 4, cameraSize);
-	mapPCXTex.create(GLTexture::TextureType::TYPE_32F, 5, projectorSize);
-	mapPCYTex.create(GLTexture::TextureType::TYPE_32F, 6, projectorSize);
+	targetTex.create(GLTexture::TextureType::TYPE_8UC3, 5, cameraSize);
+	mapPCXTex.create(GLTexture::TextureType::TYPE_32F, 6, projectorSize);
+	mapPCYTex.create(GLTexture::TextureType::TYPE_32F, 7, projectorSize);
 
 	mapPCXTex.uploadPBO(mapCPX);
 	mapPCYTex.uploadPBO(mapCPY);
@@ -67,11 +68,16 @@ void ProCamFeedback::setupVertices()
 	glEnableVertexAttribArray(0);
 }
 
-void ProCamFeedback::setUniformVariables()
+//	キャリブレーションデータ等の固定テクスチャを事前アップロード
+void ProCamFeedback::setupUniformConstants()
 {
-	//	テクスチャ
-	cameraTex.setUniformSampler();
+	//	マップ
+	mapCPXTex.uploadPBO(mapCPX);
+	mapCPYTex.uploadPBO(mapCPY);
+	mapPCXTex.uploadPBO(mapPCX);
+	mapPCYTex.uploadPBO(mapPCY);
 }
+
 
 ProCamFeedback::ProCamFeedback()
 {
@@ -110,4 +116,12 @@ void ProCamFeedback::init(GLFWwindow * controlWin, GLFWwindow * projector, ProCa
 	setupCam();
 	setupPro();
 	setupVertices();
+}
+
+void ProCamFeedback::remove(cv::Mat cameraImg, cv::Mat projectorImg, cv::Mat & removedImg, int mode)
+{
+	//	画像のアップロード
+	cameraTex.uploadPBO(cameraImg);
+	projectorTex.uploadPBO(projectorImg);
+
 }

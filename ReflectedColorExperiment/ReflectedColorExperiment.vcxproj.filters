@@ -151,5 +151,11 @@
     <None Include="VertexShader.glsl">
       <Filter>Shader</Filter>
     </None>
+    <None Include="Frag_Remover.glsl">
+      <Filter>Shader</Filter>
+    </None>
+    <None Include="Frag_Generator.glsl">
+      <Filter>Shader</Filter>
+    </None>
   </ItemGroup>
 </Project>

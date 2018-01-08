@@ -190,7 +190,7 @@ public:
 	{
 		glUniform1i(samplerID, unitNum);
 	}
-	void setUniformsampler(GLuint _samplerID)
+	void setUniformSampler(GLuint _samplerID)
 	{
 		glUniform1i(_samplerID, unitNum);
 	}

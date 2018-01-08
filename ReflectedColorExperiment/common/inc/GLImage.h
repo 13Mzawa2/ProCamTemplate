@@ -12,12 +12,15 @@ glfwMakeContextCurrent(mainWindow);
 //	Clear Buffer Bits
 glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 //	Draw Image
-glImg.draw(frameImg);		//	<- Only rendering
+glImg.draw(frameImg);		//	<- Only render to back buffer
 //	Clear Depth Bits (so you can overwride CG on frameImg)
 glClear(GL_DEPTH_BUFFER_BIT);
 //	Draw your CG
 //	End Draw
 glfwSwapBuffers(mainWindow);
+
+Change 20171228:
+・PBOによる高速化を図る（そんなに早くならなかった）
 
 Change 20170202:
 ・flipをシェーダ内で実行するように変更
@@ -27,8 +30,6 @@ Change 20160119:
 ・コメント大幅追加
 ・GLSLをインライン化して外部ファイルを不要にした
 
-Change 20171228:
-・PBOによる高速化を図る（そんなに早くならなかった）
 
 *********************************************************/
 
