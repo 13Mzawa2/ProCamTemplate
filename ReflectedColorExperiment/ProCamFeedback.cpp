@@ -13,8 +13,10 @@ void ProCamFeedback::setupCam()
 	mapCPYTex.create(GLTexture::TextureType::TYPE_32F, 3, cameraSize);
 
 	//	初期化時に固定テクスチャを転送
-	mapCPXTex.uploadPBO(mapCPX);
-	mapCPYTex.uploadPBO(mapCPY);
+	//mapCPXTex.uploadPBO(mapCPX);
+	//mapCPYTex.uploadPBO(mapCPY);
+	mapCPXTex.upload(mapCPX);
+	mapCPYTex.upload(mapCPY);
 	
 	//	Uniform変数のIDを取得
 	cameraSamplerID_c = cameraTex.getSampler(camShader.program, "camImgSampler");
@@ -35,8 +37,10 @@ void ProCamFeedback::setupPro()
 	mapPCXTex.create(GLTexture::TextureType::TYPE_32F, 6, projectorSize);
 	mapPCYTex.create(GLTexture::TextureType::TYPE_32F, 7, projectorSize);
 
-	mapPCXTex.uploadPBO(mapCPX);
-	mapPCYTex.uploadPBO(mapCPY);
+	//mapPCXTex.uploadPBO(mapCPX);
+	//mapPCYTex.uploadPBO(mapCPY);
+	mapPCXTex.upload(mapCPX);
+	mapPCYTex.upload(mapCPY);
 
 	cameraSamplerID_p = cameraTex.getSampler(projShader.program, "camImgSampler");
 	projectorSamplerID_p = projectorTex.getSampler(projShader.program, "projImgSampler");
@@ -68,14 +72,30 @@ void ProCamFeedback::setupVertices()
 	glEnableVertexAttribArray(0);
 }
 
-//	キャリブレーションデータ等の固定テクスチャを事前アップロード
-void ProCamFeedback::setupUniformConstants()
+//	キャリブレーションデータ等の定数をアップロード
+//	camShader
+void ProCamFeedback::setUniformConstantsCam()
 {
-	//	マップ
-	mapCPXTex.uploadPBO(mapCPX);
-	mapCPYTex.uploadPBO(mapCPY);
-	mapPCXTex.uploadPBO(mapPCX);
-	mapPCYTex.uploadPBO(mapPCY);
+	//	定数
+	glUniform3fv(glGetUniformLocation(camShader.program, "gamma_p"), 1, cv::Vec3f(gamma_p).val);
+	glUniform3fv(glGetUniformLocation(camShader.program, "gamma_c"), 1, cv::Vec3f(gamma_c).val);
+	glUniform3fv(glGetUniformLocation(camShader.program, "c_0"), 1, cv::Vec3f(c_0).val);
+	glUniform3fv(glGetUniformLocation(camShader.program, "c_th"), 1, cv::Vec3f(c_th).val);
+	glUniformMatrix3fv(glGetUniformLocation(camShader.program, "cmatPC"), 1, true, (float*)colorConvMat.data);
+	glUniformMatrix3fv(glGetUniformLocation(camShader.program, "matJD"), 1, true, (float*)matJD.data);
+	cv::Mat matJDinv = matJD.inv();
+	glUniformMatrix3fv(glGetUniformLocation(camShader.program, "matJDinv"), 1, true, (float*)matJDinv.data);
+	glUniformMatrix3fv(glGetUniformLocation(camShader.program, "matPCA0"), 1, true, (float*)matPCA[0].data);
+	glUniformMatrix3fv(glGetUniformLocation(camShader.program, "matPCA1"), 1, true, (float*)matPCA[1].data);
+	glUniformMatrix3fv(glGetUniformLocation(camShader.program, "matPCA2"), 1, true, (float*)matPCA[2].data);
+	glUniform1i(glGetUniformLocation(camShader.program, "estmodel"), est_model);
+	glUniform2i(glGetUniformLocation(camShader.program, "camSize"), cameraSize.width, cameraSize.height);
+	glUniform2i(glGetUniformLocation(camShader.program, "projSize"), projectorSize.width, projectorSize.height);
+	//	サンプラーをテクスチャに関連付け
+	cameraTex.setUniformSampler(cameraSamplerID_c);
+	projectorTex.setUniformSampler(projectorSamplerID_c);
+	mapCPXTex.setUniformSampler();
+	mapCPYTex.setUniformSampler();
 }
 
 
@@ -94,6 +114,8 @@ void ProCamFeedback::init(GLFWwindow * controlWin, GLFWwindow * projector, ProCa
 	projWindow = projector;
 
 	//	キャリブレーションデータのコピー
+	cameraSize = gc.mapCPX.size();
+	projectorSize = gc.mapPCX.size();
 	mapCPX = gc.mapCPX.clone();
 	mapCPY = gc.mapCPY.clone();
 	mapPCX = gc.mapPCX.clone();
@@ -102,11 +124,14 @@ void ProCamFeedback::init(GLFWwindow * controlWin, GLFWwindow * projector, ProCa
 	gamma_c = cc.gammaCam();
 	c_0 = cc.C_0();
 	c_th = cc.C_th();
-	colorConvMat = cc.colorConvertMat();
-	matJD = cc.getMatJD();
-	matPCA = cc.getMatPCA();
-	cameraSize = mapCPX.size();
-	projectorSize = mapPCX.size();
+	cc.colorConvertMat().convertTo(colorConvMat, CV_32F);
+	cc.getMatJD().convertTo(matJD, CV_32F);
+	matPCA.clear();
+	for (int i = 0; i < 3; i++) {
+		cv::Mat m;
+		cc.getMatPCA()[i].convertTo(m, CV_32F);
+		matPCA.push_back(m);
+	}
 
 	//	シェーダープログラムのコンパイル
 	camShader.initGLSL(vertexDir, camFragDir);
@@ -116,12 +141,36 @@ void ProCamFeedback::init(GLFWwindow * controlWin, GLFWwindow * projector, ProCa
 	setupCam();
 	setupPro();
 	setupVertices();
+
+	initialised = true;
 }
 
-void ProCamFeedback::remove(cv::Mat cameraImg, cv::Mat projectorImg, cv::Mat & removedImg, int mode)
+void ProCamFeedback::remove(cv::Mat cameraImg, cv::Mat projectorImg, cv::Mat & removedImg, int removeMode)
 {
+	glfwMakeContextCurrent(camWindow);
+	////	FBOを有効化（これ以降はオフスクリーンレンダリング）
+	//fbo.enable();
+	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+	camShader.enable();
 	//	画像のアップロード
-	cameraTex.uploadPBO(cameraImg);
-	projectorTex.uploadPBO(projectorImg);
+	//cameraTex.uploadPBO(cameraImg);
+	//projectorTex.uploadPBO(projectorImg);
+	cameraTex.upload(cameraImg);
+	projectorTex.upload(projectorImg);
+	//	その他変数のアップロード
+	est_model = removeMode;
+	setUniformConstantsCam();
 
+	//	描画(1e-5ms)
+	glBindVertexArray(vertexArrayObj);
+	glDrawArrays(GL_TRIANGLE_FAN, 0, vertexNum);
+	glBindVertexArray(0);
+	//fbo.disable();
+	camShader.disable();
+	glBindTexture(GL_TEXTURE_RECTANGLE, 0);
+
+	//removedTex.downloadPBO(fbo.id);
+	//removedTex.readPixelsPBO(removedImg);
+	//removedTex.readPixelsPBO(fbo.id, removedImg);
+	removedTex.readPixels(removedImg);
 }

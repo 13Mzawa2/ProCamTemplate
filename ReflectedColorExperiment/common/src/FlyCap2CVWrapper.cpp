@@ -176,12 +176,12 @@ void FlyCap2CVWrapper::open()
 	}
 	//	Disable Auto changes
 	autoFrameRate(false, 120.f);
-	autoWhiteBalance(false, 690, 670);
+	autoWhiteBalance(false, 760, 615);
 	//autoWhiteBalance(false, 512, 512);
 	autoExposure(false, -0.67);
 	autoSaturation(false, 100.0f);
 	autoShutter(false, 8.323f);
-	autoGain(false, 15.3);
+	autoGain(false, 17.0);
 
 	flycamError = flycam.StartCapture();
 	if (flycamError == PGRERROR_ISOCH_BANDWIDTH_EXCEEDED)

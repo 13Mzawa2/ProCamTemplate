@@ -42,14 +42,18 @@ private:
 	cv::Mat colorConvMat;
 	cv::Mat matJD;
 	std::vector<cv::Mat> matPCA;
+	//	ƒ‚[ƒhİ’è
+	int est_model = 0;		//	„’èƒ‚ƒfƒ‹
 
 	void setupCam();
 	void setupPro();
 	void setupVertices();
-	void setupUniformConstants();
+	void setUniformConstantsCam();
 
 public:
 	
+	bool initialised = false;
+
 	ProCamFeedback();
 	~ProCamFeedback();
 

@@ -335,7 +335,8 @@ cv::Vec3d ProCamColorCalibrator::estimateColorDiag(cv::Vec3d camColor, cv::Vec3d
 	auto Cp = reflectProCam(linearizePro(projColor), cv::Vec3d(1.0, 1.0, 1.0));
 	cv::Vec3d R_diag;
 	for (int i = 0; i < 3; i++) {
-		R_diag[i] = C[i] / MAX(Cp[i], 0.001);
+		R_diag[i] = C[i] / Cp[i];
+		R_diag[i] = MAX(0, MIN(1, R_diag[i]));
 	}
 	auto C_est = reflectProCam(linearizePro(light), R_diag);
 	auto Ic = gammaCam(C_est);
@@ -380,12 +381,188 @@ cv::Vec3d ProCamColorCalibrator::estimateColorJD(cv::Vec3d camColor, cv::Vec3d p
 	cv::Vec3d Cp_d = cv::Vec3d(cv::Mat(matJDinv * cv::Mat(Cp)));
 
 	cv::Vec3d D(C_d[0] / Cp_d[0], C_d[1] / Cp_d[1], C_d[2] / Cp_d[2]);
+	D = cv::Vec3d(MAX(0, MIN(1, D[0])), MAX(0, MIN(1, D[1])), MAX(0, MIN(1, D[2])));
 	cv::Mat R = matJD * cv::Mat::diag(cv::Mat(D)) * matJDinv;
 
 	auto C_est = reflectProCam(linearizePro(light), R);
 	auto Ic = gammaCam(C_est);
 
 	return Ic;
+}
+
+cv::Mat ProCamColorCalibrator::estimateColorDiag(cv::Mat camImg, cv::Mat projImg)
+{
+	cv::Mat removed = camImg.clone();
+	removed.forEach<cv::Vec3b>([&](cv::Vec3b &c, const int pos[]) -> void {
+		cv::Vec3d cam = (cv::Vec3d)camImg.at<cv::Vec3b>(pos[0], pos[1]);
+		cv::Vec3d proj = (cv::Vec3d)projImg.at<cv::Vec3b>(pos[0], pos[1]);
+		auto rem = estimateColorDiag(cam, proj);
+		c = cv::Vec3b(rem);
+	});
+	return removed;
+}
+
+cv::Mat ProCamColorCalibrator::estimateColorPCA(cv::Mat camImg, cv::Mat projImg)
+{
+	cv::Mat removed = camImg.clone();
+	removed.forEach<cv::Vec3b>([&](cv::Vec3b &c, const int pos[]) -> void {
+		cv::Vec3d cam = (cv::Vec3d)camImg.at<cv::Vec3b>(pos[0], pos[1]);
+		cv::Vec3d proj = (cv::Vec3d)projImg.at<cv::Vec3b>(pos[0], pos[1]);
+		auto rem = estimateColorPCA(cam, proj);
+		c = cv::Vec3b(rem);
+	});
+	return removed;
+}
+
+cv::Mat ProCamColorCalibrator::estimateColorJD(cv::Mat camImg, cv::Mat projImg)
+{
+	cv::Mat removed = camImg.clone();
+	removed.forEach<cv::Vec3b>([&](cv::Vec3b &c, const int pos[]) -> void {
+		cv::Vec3d cam = (cv::Vec3d)camImg.at<cv::Vec3b>(pos[0], pos[1]);
+		cv::Vec3d proj = (cv::Vec3d)projImg.at<cv::Vec3b>(pos[0], pos[1]);
+		auto rem = estimateColorJD(cam, proj);
+		c = cv::Vec3b(rem);
+	});
+	return removed;
+}
+
+void ProCamColorCalibrator::estimate(FlyCap2CVWrapper & flycap, cv::Rect projArea, cv::Mat projImg, cv::Mat projImgCam, int estMode)
+{
+	//	setup
+	cv::Mat camImg;
+	cv::namedWindow("cv_camera");
+	cv::namedWindow("cv_projector", cv::WINDOW_FREERATIO);
+	cv::moveWindow("cv_projector", projArea.x, projArea.y);
+	cv::setWindowProperty("cv_projector", cv::WND_PROP_FULLSCREEN, cv::WINDOW_FULLSCREEN);
+
+	//	loop
+	while (1) {
+		camImg = flycap.readImage();
+		cv::Mat remImg;
+		switch (estMode) {
+		case 1:
+			remImg = estimateColorPCA(camImg, projImgCam);
+			break;
+		case 2:
+			remImg = estimateColorJD(camImg, projImgCam);
+			break;
+		default:
+			remImg = estimateColorDiag(camImg, projImgCam);
+			break;
+		}
+		cv::imshow("cv_camera", remImg);
+		cv::imshow("cv_projector", projImg);
+		auto c = cv::waitKey(10);
+		if (c == ' ') break;
+		if (c == 's') {
+			cv::imwrite("./data/cam.png", camImg);
+			cv::imwrite("./data/rem.png", remImg);
+		}
+	}
+
+	//	生成したウィンドウを閉じる
+	cv::destroyWindow("cv_camera");
+	cv::destroyWindow("cv_projector");
+}
+
+void ProCamColorCalibrator::testEstimation(FlyCap2CVWrapper & flycap, cv::Rect projArea, cv::Mat projImg, cv::Mat projImgCam)
+{
+	//	setup
+	cv::Mat camImg;
+	cv::namedWindow("cv_camera");
+	cv::namedWindow("cv_projector", cv::WINDOW_FREERATIO);
+	cv::moveWindow("cv_projector", projArea.x, projArea.y);
+	cv::setWindowProperty("cv_projector", cv::WND_PROP_FULLSCREEN, cv::WINDOW_FULLSCREEN);
+
+	cv::Mat whitelight(projArea.size(), CV_8UC3, cv::Scalar::all(255));
+
+	while (1) {
+		camImg = flycap.readImage();
+		cv::imshow("cv_projector", projImg);
+		cv::imshow("cv_camera", camImg);
+		auto c = cv::waitKey(10);
+		if (c == 27) break;
+		if (c == 'c') {
+			//	白色光下画像の撮影
+			cv::imshow("cv_projector", whitelight);
+			cv::waitKey(200);
+			cv::Mat whiteImg = flycap.readImage();
+			cv::imshow("cv_camera", whiteImg);
+			cv::waitKey(10);
+			//	3個のモデル式で推定
+			auto imgDiag = estimateColorDiag(camImg, projImgCam);
+			auto imgPCA = estimateColorPCA(camImg, projImgCam);
+			auto imgJD = estimateColorJD(camImg, projImgCam);
+			//	白色光下画像との誤差算出
+			cv::Mat diffDiag, diffPCA, diffJD;
+			diffDiag = psudoColordDist(distance(whiteImg, imgDiag), 0, 50);
+			diffPCA = psudoColordDist(distance(whiteImg, imgPCA), 0, 50);
+			diffJD = psudoColordDist(distance(whiteImg, imgJD), 0, 50);
+
+			//	推定結果の表示
+			cv::imshow("diag", imgDiag);
+			cv::imshow("PCA", imgPCA);
+			cv::imshow("JD", imgJD);
+
+			cv::imshow("diff diag", diffDiag);
+			cv::imshow("diff PCA", diffPCA);
+			cv::imshow("diff JD", diffJD);
+
+			cv::waitKey();
+
+			cv::destroyWindow("diag");
+			cv::destroyWindow("PCA");
+			cv::destroyWindow("JD");
+			cv::destroyWindow("diff diag");
+			cv::destroyWindow("diff PCA");
+			cv::destroyWindow("diff JD");
+
+			cv::imwrite("./data/est_diag.png", imgDiag);
+			cv::imwrite("./data/est_pca.png", imgPCA);
+			cv::imwrite("./data/est_jd.png", imgJD);
+			cv::imwrite("./data/diff_diag.png", diffDiag);
+			cv::imwrite("./data/diff_pca.png", diffPCA);
+			cv::imwrite("./data/diff_jd.png", diffJD);
+
+			cv::imwrite("./data/original.png", camImg);
+			cv::imwrite("./data/gt.png", whiteImg);
+			cv::imwrite("./data/proj.png", projImgCam);
+		}
+	}
+
+	//	生成したウィンドウを閉じる
+	cv::destroyWindow("cv_camera");
+	cv::destroyWindow("cv_projector");
+}
+
+//	img1とimg2のユークリッド距離を求める
+cv::Mat ProCamColorCalibrator::distance(cv::Mat img1, cv::Mat img2)
+{
+	cv::Mat img1f, img2f;
+	img1.convertTo(img1f, CV_64FC3);
+	img2.convertTo(img2f, CV_64FC3);
+	cv::Mat diff(img1.size(), CV_64FC1);
+	diff.forEach<double>([&](double &c, const int *pos)->void{
+		auto c1 = img1f.at<cv::Vec3d>(pos[0], pos[1]);
+		auto c2 = img2f.at<cv::Vec3d>(pos[0], pos[1]);
+		auto cd = c1 - c2;
+		c = sqrtf(cd[0] * cd[0] + cd[1] * cd[1] + cd[2] * cd[2]);
+	});
+
+	return diff;
+}
+
+cv::Mat ProCamColorCalibrator::psudoColordDist(cv::Mat distImg, double vmin, double vmax)
+{
+	cv::Mat img_hsv(distImg.size(), CV_8UC3, cv::Scalar::all(255));
+	img_hsv.forEach<cv::Vec3b>([&](cv::Vec3b &c, const int *pos)->void{
+		auto v = distImg.at<double>(pos[0], pos[1]);
+		v = MAX(vmin, MIN(vmax, v));		//	clipping
+		c[0] = (unsigned char)(120 - 120 * (v - vmin) / (vmax - vmin));		//	hue: 0 - 240degにマッピング
+	});
+	cv::Mat img;
+	cv::cvtColor(img_hsv, img, cv::COLOR_HSV2BGR);
+	return img;
 }
 
 void ProCamColorCalibrator::writeCSV(cv::String path, std::vector<std::vector<cv::Vec3d>> _camColors, std::vector<cv::Vec3d> _projColors)

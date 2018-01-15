@@ -15,7 +15,7 @@ public:
 
 	~FrameBufferObject()
 	{
-		glDeleteFramebuffers(1, &id);
+		//glDeleteFramebuffers(1, &id);
 	}
 
 	void create(int width, int height)

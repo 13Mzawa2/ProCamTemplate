@@ -29,7 +29,10 @@ public:
 	GLuint pbo;
 
 	GLTexture() {};
-	~GLTexture() {};
+	~GLTexture() 
+	{
+		//glDeleteBuffers(1, &pbo);
+	};
 
 	//	OpenGL用テクスチャの生成
 	//	@param:
@@ -154,20 +157,20 @@ public:
 	//	PBOからメモリコピーは別
 	void downloadPBO(GLuint buffID)
 	{
-		glBindBuffer(GL_PIXEL_PACK_BUFFER, pbo);
 		glBindFramebuffer(GL_READ_FRAMEBUFFER, buffID);
+		glBindBuffer(GL_PIXEL_PACK_BUFFER, pbo);
 		//	PBOへの書き込み
 		GLint internalformat, format, bittype;
 		getType(textureType, internalformat, format, bittype);
 		glReadPixels(0, 0, size.width, size.height, format, bittype, 0);
-		glBindFramebuffer(GL_READ_FRAMEBUFFER, 0);
 		glBindBuffer(GL_PIXEL_PACK_BUFFER, 0);
+		glBindFramebuffer(GL_READ_FRAMEBUFFER, 0);
 	}
 
 	//	書き込み済みPBOからCPU領域にコピー
 	void readPixelsPBO(cv::Mat &img)
 	{
-		img = cv::Mat(size, CV_8UC3);
+		img = cv::Mat::zeros(size, CV_8UC3);
 		glBindBuffer(GL_PIXEL_PACK_BUFFER, pbo);
 		GLubyte *pboptr = (GLubyte*)glMapBuffer(GL_PIXEL_PACK_BUFFER, GL_READ_ONLY);
 		if (pboptr) {
@@ -176,6 +179,48 @@ public:
 			glUnmapBuffer(GL_PIXEL_PACK_BUFFER);
 		}
 		glBindBuffer(GL_PIXEL_PACK_BUFFER, 0);
+	}
+	//	書き込み済みPBOからCPU領域にコピー
+	void readPixelsPBO(GLuint buffID, cv::Mat &img)
+	{
+		img = cv::Mat::zeros(size, CV_8UC3);
+		glBindBuffer(GL_PIXEL_PACK_BUFFER, pbo);
+		glBindFramebuffer(GL_READ_FRAMEBUFFER, buffID);
+		//	PBOへの書き込み
+		GLint internalformat, format, bittype;
+		getType(textureType, internalformat, format, bittype);
+		glReadPixels(0, 0, size.width, size.height, format, bittype, 0);
+		glBindFramebuffer(GL_READ_FRAMEBUFFER, 0);
+		//	CPU領域にコピー
+		GLubyte *pboptr = (GLubyte*)glMapBuffer(GL_PIXEL_PACK_BUFFER, GL_READ_ONLY);
+		if (pboptr) {
+			int buffersize = getBufferSize(textureType, size);
+			std::memcpy(img.data, pboptr, buffersize);
+			glUnmapBuffer(GL_PIXEL_PACK_BUFFER);
+		}
+		glBindBuffer(GL_PIXEL_PACK_BUFFER, 0);
+	}
+
+	void readPixels(cv::Mat &img)
+	{
+		//	CPU領域に直接読み込み
+		GLint internalformat, format, bittype;
+		getType(textureType, internalformat, format, bittype);
+		glReadBuffer(GL_BACK);
+		glReadPixels(0, 0, size.width, size.height, format, bittype, img.data);
+		cv::flip(img, img, 0);
+	}
+
+	void readPixels(GLuint buffID, cv::Mat &img)
+	{
+		glBindFramebuffer(GL_READ_FRAMEBUFFER, buffID);
+		//	CPU領域に直接読み込み
+		GLint internalformat, format, bittype;
+		getType(textureType, internalformat, format, bittype);
+		glReadBuffer(GL_BACK);
+		glReadPixels(0, 0, size.width, size.height, format, bittype, img.data);
+		cv::flip(img, img, 0);
+		glBindFramebuffer(GL_READ_FRAMEBUFFER, 0);
 	}
 
 	//	シェーダプログラムからテクスチャサンプラーのIDを取得
@@ -223,6 +268,7 @@ private:
 		default:	// TYPE_8UC3
 			buffersize = size.width*size.height * sizeof(unsigned char);
 		}
+		return buffersize;
 	}
 	
 

@@ -146,7 +146,7 @@ public:
 		//	glMapBuffer()を呼ぶことで，強制的にメモリ領域を確保させる
 		glBufferData(GL_PIXEL_UNPACK_BUFFER, pbo_buffersize, 0, GL_STREAM_DRAW);
 		//	CPU領域にPBOを書き込み専用で展開
-		GLubyte* pboptr = (GLubyte*)glMapBufferARB(GL_PIXEL_UNPACK_BUFFER, GL_WRITE_ONLY);
+		GLubyte* pboptr = (GLubyte*)glMapBuffer(GL_PIXEL_UNPACK_BUFFER, GL_WRITE_ONLY);
 		if (pboptr) {
 			//	画像データをPBOへコピー
 			std::memcpy(pboptr, frame.data, pbo_buffersize);

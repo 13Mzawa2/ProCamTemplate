@@ -1,6 +1,11 @@
 #include "ControlWindow.h"
 
+
 const std::string ControlWindow::colorProfilePath = "./data/colorProfile.xml";
+const std::string ControlWindow::testTexturePath = "./data/xyColor.png";
+const std::string ControlWindow::vertexShaderDir = "./VertexShader.glsl";
+const std::string ControlWindow::removerShaderDir = "./Frag_Remover.glsl";
+const std::string ControlWindow::generatorShaderDir = "./Frag_Generator.glsl";
 
 void ControlWindow::cameraInit(void)
 {
@@ -21,6 +26,10 @@ void ControlWindow::update(void)
 {
 	cameraImg = flycap.readImage();
 	drawImg = cameraImg.clone();
+
+	if (procam_mode) {
+		fb.remove(cameraImg, projectorWindow.projImg, drawImg, removemode);
+	}
 
 	if (clopping_mode) {
 		//	現在地を取得
@@ -71,7 +80,11 @@ void ControlWindow::drawGUI(void)
 	ImGui::Begin("Control GUI");
 	ImGui::Text("Application average %.3f ms / frame (%.1f FPS)", 
 		imgui_io.DeltaTime, imgui_io.Framerate);
+	if (ImGui::Button("Capture")) {
+		cv::imwrite("./data/capture.png", drawImg);
+	}
 	if (ImGui::Button("Calibration")) show_calib_popup ^= true;
+	if (ImGui::Button("ProCam System")) show_fb_popup ^= true;
 	ImGui::NewLine();
 	if (ImGui::Button("ImGui Demo Window")) show_test_window ^= true;
 	ImGui::End();
@@ -129,7 +142,7 @@ void ControlWindow::drawGUI(void)
 			ImGui::Text(
 			"ProCam geometry calibration by Gray-Code Patterns\n"
 			);
-			if (ImGui::Button("Start Calibration")) {
+			if (ImGui::Button("Start Pattern Projection")) {
 				projectorWindow.hide();
 				cv::Point pos(projectorWindow.winPos[0], projectorWindow.winPos[1]);
 				geocalib.calibrate(flycap, cv::Rect(pos, projectorWindow.projSize));
@@ -139,9 +152,84 @@ void ControlWindow::drawGUI(void)
 				geocalib.showColoredMaps();
 			}
 		}
+		if (ImGui::CollapsingHeader("Test")) {
+			ImGui::Text(
+				"Estimation Test on CPU\n"
+			);
+			ImGui::RadioButton("Diag", &removemode, 0);
+			ImGui::RadioButton("PCA", &removemode, 1);
+			ImGui::RadioButton("JD", &removemode, 2);
+			//	動画像で確認
+			if (ImGui::Button("Remove") && geocalib.calibrated && calibrator.reflectance_calibrated) {
+				projectorWindow.hide();
+				cv::Point pos(projectorWindow.winPos[0], projectorWindow.winPos[1]);
+				//	テクスチャ画像読み込み
+				auto texture = cv::imread(testTexturePath);
+				int backlight = 40;
+				texture.forEach<cv::Vec3b>([&](cv::Vec3b &c, const int* pos)->void {
+					c[0] = MAX(backlight, c[0]);
+					c[1] = MAX(backlight, c[1]);
+					c[2] = MAX(backlight, c[2]);
+				});
+				projectorWindow.projImg = texture;
+				cv::resize(projectorWindow.projImg, projectorWindow.projImg, projectorWindow.projSize);
+				cv::Mat projImgCam;
+				cv::remap(projectorWindow.projImg, projImgCam, geocalib.mapCPX, geocalib.mapCPY, cv::INTER_LINEAR);
+				
+				calibrator.estimate(flycap, cv::Rect(pos, projectorWindow.projSize),
+					projectorWindow.projImg, projImgCam, removemode);
+				
+				projectorWindow.show();
+				projectorWindow.projImg = cv::Mat(projectorWindow.projSize, CV_8UC3, cv::Scalar::all(255));
+			}
+			//	解析
+			if (ImGui::Button("Test remover") && geocalib.calibrated && calibrator.reflectance_calibrated) {
+				projectorWindow.hide();
+				cv::Point pos(projectorWindow.winPos[0], projectorWindow.winPos[1]);
+				//	テクスチャ画像読み込み
+				auto texture = cv::imread(testTexturePath);
+				int backlight = 50;
+				texture.forEach<cv::Vec3b>([&](cv::Vec3b &c, const int* pos)->void {
+					c[0] = MAX(backlight, c[0]);
+					c[1] = MAX(backlight, c[1]);
+					c[2] = MAX(backlight, c[2]);
+				});
+				projectorWindow.projImg = texture;
+				cv::resize(projectorWindow.projImg, projectorWindow.projImg, projectorWindow.projSize);
+				cv::Mat projImgCam;
+				cv::remap(projectorWindow.projImg, projImgCam, geocalib.mapCPX, geocalib.mapCPY, cv::INTER_LINEAR);
+
+				calibrator.testEstimation(flycap, cv::Rect(pos, projectorWindow.projSize),
+					projectorWindow.projImg, projImgCam);
+
+				projectorWindow.show();
+				projectorWindow.projImg = cv::Mat(projectorWindow.projSize, CV_8UC3, cv::Scalar::all(255));
+			}
+		}
 		ImGui::End();
 	}
 
+	//	システム評価用
+	if (show_fb_popup) {
+		ImGui::SetNextWindowSize(ImVec2(100, 100), ImGuiSetCond_FirstUseEver);
+		ImGui::Begin("ProCam System GUI");
+		if (ImGui::Button("Initialize")) {
+			fb.init(window, projectorWindow.window,
+				calibrator, geocalib,
+				vertexShaderDir.c_str(), removerShaderDir.c_str(), generatorShaderDir.c_str());
+		}
+		if (fb.initialised) {
+			ImGui::RadioButton("Diag", &removemode, 0);
+			ImGui::RadioButton("PCA", &removemode, 1);
+			ImGui::RadioButton("JD", &removemode, 2);
+			if (ImGui::Button("launch")) {
+				auto img = cv::imread(testTexturePath);
+				cv::resize(img, projectorWindow.projImg, projectorWindow.projSize);
+				procam_mode = true;
+			}
+		}
+		ImGui::End();
+	}
 
 	//	ImGui Test Window (Demo) 参照用
 	if (show_test_window) {

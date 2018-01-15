@@ -7,6 +7,7 @@
 //	モデル式
 //	入力方程式: P_i = (I_Pi / 255)^gamma_Pi
 //	反射方程式: C = R(MP + C_0)
+//	           C = RK(MP + C_0)  発色の空間変化も加味
 //	出力方程式: I_ci = 255 * max(0, C_i - C_thi)^(1/gamma_Ci)
 //	OpenCVの仕様に準じているのでRGBの順番はすべてBGR順
 
@@ -24,6 +25,7 @@ private:
 	//	反射率推定のパラメータ
 	std::vector<cv::Mat> matPCA;
 	cv::Mat matJD, matJDinv;
+	cv::Mat whiteGain;		//	撮像の空間的な色の違いを表すゲイン
 
 	//	最小化ソルバ用
 	//	パラメータの解釈
@@ -82,6 +84,7 @@ public:
 	cv::Mat colorConvertMat() { return colorConvertMat(params); };
 	std::vector<cv::Mat> getMatPCA() { return matPCA; }
 	cv::Mat getMatJD() { return matJD; }
+	cv::Mat getWhiteImg() { return whiteGain; }
 
 	//	モデル式
 	cv::Vec3d linearizePro(cv::Vec3d Ip) { return linearizePro(params, Ip); };
@@ -125,6 +128,17 @@ public:
 	cv::Vec3d estimateColorPCA(cv::Vec3d camColor, cv::Vec3d projColor, cv::Vec3d light = cv::Vec3d(255., 255., 255.));
 	//	同時対角化を利用したモデル
 	cv::Vec3d estimateColorJD(cv::Vec3d camColor, cv::Vec3d projColor, cv::Vec3d light = cv::Vec3d(255., 255., 255.));
+
+	//	↑を画像に対して行う　projImgはremap後
+	cv::Mat estimateColorDiag(cv::Mat camImg, cv::Mat projImg);
+	cv::Mat estimateColorPCA(cv::Mat camImg, cv::Mat projImg);
+	cv::Mat estimateColorJD(cv::Mat camImg, cv::Mat projImg);
+
+	//	テスト用
+	void estimate(FlyCap2CVWrapper &flycap, cv::Rect projArea, cv::Mat projImg, cv::Mat projImgCam, int estMode = 0);
+	void testEstimation(FlyCap2CVWrapper &flycap, cv::Rect projArea, cv::Mat projImg, cv::Mat projImgCam);
+	cv::Mat distance(cv::Mat img1, cv::Mat img2);
+	cv::Mat psudoColordDist(cv::Mat distImg, double vmin = 0, double vmax = 1);
 
 	//	キャリブレーション結果の書き出し
 	//
