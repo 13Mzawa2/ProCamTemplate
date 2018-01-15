@@ -7,7 +7,7 @@
 //	モデル式
 //	入力方程式: P_i = (I_Pi / 255)^gamma_Pi
 //	反射方程式: C = R(MP + C_0)
-//	           C = RK(MP + C_0)  発色の空間変化も加味
+//	           C = RK(MP + C_0)  発色の空間変化も加味した場合はこちら
 //	出力方程式: I_ci = 255 * max(0, C_i - C_thi)^(1/gamma_Ci)
 //	OpenCVの仕様に準じているのでRGBの順番はすべてBGR順
 
@@ -70,6 +70,7 @@ private:
 public:
 	bool model_calibrated = false;		//	モデル式パラメータが確定されたときにtrue
 	bool reflectance_calibrated = false;
+	bool whitegain_calibrated = false;
 
 	ProCamColorCalibrator();
 	~ProCamColorCalibrator();
@@ -98,10 +99,12 @@ public:
 	//
 	//	OpenCVのウィンドウを生成して行う
 	void calibrate(FlyCap2CVWrapper &flycap, cv::Rect projArea, ColorChecker cc);
+	void calibrateWhite(FlyCap2CVWrapper &flycap, cv::Rect projArea, ColorChecker cc);
 	//	滑降シンプレックス法で最適化
 	double fit(std::vector<std::vector<cv::Vec3d>> _patchColors, std::vector<cv::Vec3d> _lightColors);
 	//	パラメータの表示
 	void showParams();
+	cv::Mat drawWhiteGain();
 	//	パラメータベクトルのロード
 	void load(cv::String path);
 	void save(cv::String path);
@@ -122,6 +125,11 @@ public:
 	//		light: 反射色を推定したいプロジェクタ投影像の色(BGR, 0-255) default = (255,255,255)
 	//	@return　光源lightの下での推定反射色
 	//
+	//	反射率計算
+	cv::Mat reflectanceDiag(cv::Vec3d C, cv::Vec3d Cp);
+	cv::Mat reflectancePCA(cv::Vec3d C, cv::Vec3d Cp);
+	cv::Mat reflectanceJD(cv::Vec3d C, cv::Vec3d Cp);
+
 	//	反射率行列の対角性を仮定したモデル
 	cv::Vec3d estimateColorDiag(cv::Vec3d camColor, cv::Vec3d projColor, cv::Vec3d light = cv::Vec3d(255., 255., 255.));
 	//	主成分行列を利用したモデル
@@ -133,6 +141,11 @@ public:
 	cv::Mat estimateColorDiag(cv::Mat camImg, cv::Mat projImg);
 	cv::Mat estimateColorPCA(cv::Mat camImg, cv::Mat projImg);
 	cv::Mat estimateColorJD(cv::Mat camImg, cv::Mat projImg);
+
+	//	Proの配光特性を考慮した場合
+	cv::Mat estimateColor2Diag(cv::Mat camImg, cv::Mat projImg);
+	cv::Mat estimateColor2PCA(cv::Mat camImg, cv::Mat projImg);
+	cv::Mat estimateColor2JD(cv::Mat camImg, cv::Mat projImg);
 
 	//	テスト用
 	void estimate(FlyCap2CVWrapper &flycap, cv::Rect projArea, cv::Mat projImg, cv::Mat projImgCam, int estMode = 0);

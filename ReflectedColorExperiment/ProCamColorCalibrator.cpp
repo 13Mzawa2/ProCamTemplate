@@ -112,6 +112,87 @@ void ProCamColorCalibrator::calibrate(FlyCap2CVWrapper &flycap, cv::Rect projAre
 	writeCSV("./data/calib.csv", patchColors, projColors);
 }
 
+void ProCamColorCalibrator::calibrateWhite(FlyCap2CVWrapper & flycap, cv::Rect projArea, ColorChecker cc)
+{
+	//	setup
+	cv::Mat camImg;
+	cv::Mat projImg(projArea.size(), CV_8UC3, cv::Scalar::all(255));
+	cv::namedWindow("cv_camera");
+	cv::namedWindow("cv_projector", cv::WINDOW_FREERATIO);
+	cv::moveWindow("cv_projector", projArea.x, projArea.y);
+	cv::setWindowProperty("cv_projector", cv::WND_PROP_FULLSCREEN, cv::WINDOW_FULLSCREEN);
+
+	//	白色光を投影&撮影
+	cv::Mat imgW;
+	cv::imshow("cv_projector", projImg);
+	cv::waitKey(800);
+	imgW = flycap.readImage();
+
+	//	ColorChecker No.19-24の領域で反射率を求める
+	//	3色を投影＆撮影
+	std::vector<cv::Mat> imgBGR;
+	cv::imshow("cv_projector", cv::Mat(projArea.size(), CV_8UC3, cv::Scalar(255, 0, 0)));
+	cv::waitKey(200);
+	imgBGR.push_back(flycap.readImage());
+	cv::imshow("cv_projector", cv::Mat(projArea.size(), CV_8UC3, cv::Scalar(0, 255, 0)));
+	cv::waitKey(200);
+	imgBGR.push_back(flycap.readImage());
+	cv::imshow("cv_projector", cv::Mat(projArea.size(), CV_8UC3, cv::Scalar(0, 0, 255)));
+	cv::waitKey(200);
+	imgBGR.push_back(flycap.readImage());
+	//	ColorCheckerの領域を抽出
+	std::vector<cv::Vec3d> patchColors;
+	for (auto img : imgBGR) {
+		std::vector<cv::Vec3d> patch;
+		cc.getCCImage(img);
+		cc.getPatches(cc.CCImg);
+		cc.measurePatches(cc.CCPatches, patch);
+		for (int i = cc.PATCH_CC19_WHITE; i < cc.PATCH_NUM; i++) {
+			patchColors.push_back(patch[i]);
+		}
+	}
+	//	精確な反射率行列を求める
+	cv::Mat lightMat(3, patchColors.size(), CV_64FC1),
+		patchMat(3, patchColors.size(), CV_64FC1),
+		R, Rt;
+	for (int i = 0; i < patchColors.size(); i++) {
+		auto C = linearizeCam(patchColors[i]);
+		cv::Vec3b Ip = (i < 6) ? cv::Vec3b(255, 0, 0) 
+			: (i < 12) ? cv::Vec3b(0, 255, 0) 
+			: cv::Vec3b(0, 0, 255);
+		auto Cp = reflectProCam(linearizePro(Ip), cv::Vec3d(1,1,1));
+		lightMat.at<cv::Vec3d>(i) = Cp;
+		patchMat.at<cv::Vec3d>(i) = C;
+	}
+	//	線形最小二乗法でRを求める
+	//	patches = R * lights -> patches_t = lights_t * R_t
+	cv::solve(lightMat.t(), patchMat.t(), Rt, cv::DECOMP_SVD);
+	R = Rt.t();
+
+	//	カメラ内の反射率を一定として，白色ゲインを求める
+	whiteGain = cv::Mat(imgW.size(), CV_64FC3);
+	whiteGain.forEach<cv::Vec3d>([&](cv::Vec3d &k, const int *pos)->void {
+		auto Ic = (cv::Vec3d)imgW.at<cv::Vec3b>(pos[0], pos[1]);
+		auto C = linearizeCam(Ic);
+		auto Cw = reflectProCam(cv::Vec3d(1., 1., 1.), cv::Vec3d(1., 1., 1.));
+		auto RinvC = (cv::Vec3d)cv::Mat(R.inv()*cv::Mat(C));
+		for (int i = 0; i < 3; i++) {
+			k[i] = RinvC[i] / Cw[i];
+		}
+	});
+
+	whitegain_calibrated = true;
+
+	//	白色ゲインの表示
+	cv::imshow("white gain", drawWhiteGain());
+	cv::waitKey();
+
+	//	生成したウィンドウを閉じる
+	cv::destroyWindow("cv_camera");
+	cv::destroyWindow("cv_projector");
+	cv::destroyWindow("white gain");
+}
+
 double ProCamColorCalibrator::fit(std::vector<std::vector<cv::Vec3d>> _patchColors, std::vector<cv::Vec3d> _lightColors)
 {
 	if (_patchColors.empty() || _lightColors.empty()) return -1;
@@ -169,6 +250,15 @@ void ProCamColorCalibrator::showParams()
 		<< "C_0 = " << C_0() << std::endl
 		<< "C_th = " << C_th() << std::endl
 		<< "M = \n" << colorConvertMat() << std::endl;
+}
+
+cv::Mat ProCamColorCalibrator::drawWhiteGain()
+{
+	if (!whitegain_calibrated) return cv::Mat();
+
+	cv::Mat m;
+	whiteGain.convertTo(m, CV_8UC3, 0.9 * 255);
+	return m;
 }
 
 void ProCamColorCalibrator::load(cv::String path)
@@ -327,6 +417,50 @@ void ProCamColorCalibrator::principalMatrices(std::vector<cv::Mat> _reflectances
 	matPCA = _matPC;
 }
 
+cv::Mat ProCamColorCalibrator::reflectanceDiag(cv::Vec3d C, cv::Vec3d Cp)
+{
+	cv::Vec3d R_diag;
+	for (int i = 0; i < 3; i++) {
+		R_diag[i] = C[i] / Cp[i];
+		R_diag[i] = MAX(0, MIN(1, R_diag[i]));
+	}
+	cv::Mat R = cv::Mat::zeros(3, 3, CV_64FC1);
+	for (int i = 0; i < 3; i++) {
+		R.at<double>(i, i) = R_diag[i];
+	}
+	return R;
+}
+
+cv::Mat ProCamColorCalibrator::reflectancePCA(cv::Vec3d C, cv::Vec3d Cp)
+{
+	cv::Mat U(3, 3, CV_64FC1);
+	for (int i = 0; i < 3; i++) {
+		for (int k = 0; k < 3; k++) {
+			cv::Vec3d r_ik = (cv::Vec3d)cv::Mat(matPCA[k].row(i));
+			double u_ik = r_ik[0] * Cp[0] + r_ik[1] * Cp[1] + r_ik[2] * Cp[2];
+			U.at<double>(i, k) = u_ik;
+		}
+	}
+	cv::Mat alpha_dst;
+	cv::solve(U, C, alpha_dst);
+	auto alpha = (cv::Vec3d)alpha_dst;
+	cv::Mat R = alpha[0] * matPCA[0] + alpha[1] * matPCA[1] + alpha[2] * matPCA[2];
+
+	return R;
+}
+
+cv::Mat ProCamColorCalibrator::reflectanceJD(cv::Vec3d C, cv::Vec3d Cp)
+{
+	cv::Vec3d C_d = cv::Vec3d(cv::Mat(matJDinv * cv::Mat(C)));
+	cv::Vec3d Cp_d = cv::Vec3d(cv::Mat(matJDinv * cv::Mat(Cp)));
+
+	cv::Vec3d D(C_d[0] / Cp_d[0], C_d[1] / Cp_d[1], C_d[2] / Cp_d[2]);
+	D = cv::Vec3d(MAX(0, MIN(1, D[0])), MAX(0, MIN(1, D[1])), MAX(0, MIN(1, D[2])));
+	cv::Mat R = matJD * cv::Mat::diag(cv::Mat(D)) * matJDinv;
+
+	return R;
+}
+
 cv::Vec3d ProCamColorCalibrator::estimateColorDiag(cv::Vec3d camColor, cv::Vec3d projColor, cv::Vec3d light)
 {
 	if (!model_calibrated) return cv::Vec3d(0, 0, 0);
@@ -351,18 +485,7 @@ cv::Vec3d ProCamColorCalibrator::estimateColorPCA(cv::Vec3d camColor, cv::Vec3d 
 	auto C = linearizeCam(camColor);
 	auto Cp = reflectProCam(linearizePro(projColor), cv::Vec3d(1.0, 1.0, 1.0));
 
-	cv::Mat R_pca, U(3,3,CV_64FC1);
-	for (int i = 0; i < 3; i++) {
-		for (int k = 0; k < 3; k++) {
-			cv::Vec3d r_ik = (cv::Vec3d)cv::Mat(matPCA[k].row(i));
-			double u_ik = r_ik[0] * Cp[0] + r_ik[1] * Cp[1] + r_ik[2] * Cp[2];
-			U.at<double>(i, k) = u_ik;
-		}
-	}
-	cv::Mat alpha_dst;
-	cv::solve(U, C, alpha_dst);
-	auto alpha = (cv::Vec3d)alpha_dst;
-	cv::Mat R = alpha[0] * matPCA[0] + alpha[1] * matPCA[1] + alpha[2] * matPCA[2];
+	cv::Mat R = reflectancePCA(C, Cp);
 
 	auto C_est = reflectProCam(linearizePro(light), R);
 	auto Ic = gammaCam(C_est);
@@ -377,12 +500,7 @@ cv::Vec3d ProCamColorCalibrator::estimateColorJD(cv::Vec3d camColor, cv::Vec3d p
 	auto C = linearizeCam(camColor);
 	auto Cp = reflectProCam(linearizePro(projColor), cv::Vec3d(1.0, 1.0, 1.0));
 
-	cv::Vec3d C_d = cv::Vec3d(cv::Mat(matJDinv * cv::Mat(C)));
-	cv::Vec3d Cp_d = cv::Vec3d(cv::Mat(matJDinv * cv::Mat(Cp)));
-
-	cv::Vec3d D(C_d[0] / Cp_d[0], C_d[1] / Cp_d[1], C_d[2] / Cp_d[2]);
-	D = cv::Vec3d(MAX(0, MIN(1, D[0])), MAX(0, MIN(1, D[1])), MAX(0, MIN(1, D[2])));
-	cv::Mat R = matJD * cv::Mat::diag(cv::Mat(D)) * matJDinv;
+	cv::Mat R = reflectanceJD(C, Cp);
 
 	auto C_est = reflectProCam(linearizePro(light), R);
 	auto Ic = gammaCam(C_est);
@@ -423,6 +541,84 @@ cv::Mat ProCamColorCalibrator::estimateColorJD(cv::Mat camImg, cv::Mat projImg)
 		auto rem = estimateColorJD(cam, proj);
 		c = cv::Vec3b(rem);
 	});
+	return removed;
+}
+
+cv::Mat ProCamColorCalibrator::estimateColor2Diag(cv::Mat camImg, cv::Mat projImg)
+{
+	if (!whitegain_calibrated) return estimateColorDiag(camImg, projImg);
+
+	cv::Mat removed = camImg.clone();
+	removed.forEach<cv::Vec3b>([&](cv::Vec3b &c, const int pos[]) -> void {
+		cv::Vec3d cam = (cv::Vec3d)camImg.at<cv::Vec3b>(pos[0], pos[1]);
+		cv::Vec3d proj = (cv::Vec3d)projImg.at<cv::Vec3b>(pos[0], pos[1]);
+		cv::Vec3d wgain = (cv::Vec3d)whiteGain.at<cv::Vec3d>(pos[0], pos[1]);
+
+		auto C = linearizeCam(cam);
+		auto Cp = reflectProCam(linearizePro(proj), cv::Vec3d(1.0, 1.0, 1.0));
+		//	配光特性を考慮
+		Cp = cv::Vec3d(wgain[0] * Cp[0], wgain[1] * Cp[1], wgain[2] * Cp[2]);
+		cv::Vec3d R_diag;
+		for (int i = 0; i < 3; i++) {
+			R_diag[i] = C[i] / Cp[i];
+			R_diag[i] = MAX(0, MIN(1, R_diag[i]));
+		}
+		auto C_est = reflectProCam(cv::Vec3d(1,1,1), R_diag);
+		auto Ic = gammaCam(C_est);
+
+		c = cv::Vec3b(Ic);
+	});
+
+	return removed;
+}
+
+cv::Mat ProCamColorCalibrator::estimateColor2PCA(cv::Mat camImg, cv::Mat projImg)
+{
+	if (!whitegain_calibrated) return estimateColorPCA(camImg, projImg);
+
+	cv::Mat removed = camImg.clone();
+	removed.forEach<cv::Vec3b>([&](cv::Vec3b &c, const int pos[]) -> void {
+		cv::Vec3d cam = (cv::Vec3d)camImg.at<cv::Vec3b>(pos[0], pos[1]);
+		cv::Vec3d proj = (cv::Vec3d)projImg.at<cv::Vec3b>(pos[0], pos[1]);
+		cv::Vec3d wgain = (cv::Vec3d)whiteGain.at<cv::Vec3d>(pos[0], pos[1]);
+
+		auto C = linearizeCam(cam);
+		auto Cp = reflectProCam(linearizePro(proj), cv::Vec3d(1.0, 1.0, 1.0));
+		//	配光特性を考慮
+		Cp = cv::Vec3d(wgain[0] * Cp[0], wgain[1] * Cp[1], wgain[2] * Cp[2]);
+
+		cv::Mat R = reflectancePCA(C, Cp);
+		auto C_est = reflectProCam(cv::Vec3d(1, 1, 1), R);
+		auto Ic = gammaCam(C_est);
+
+		c = cv::Vec3b(Ic);
+	});
+
+	return removed;
+}
+
+cv::Mat ProCamColorCalibrator::estimateColor2JD(cv::Mat camImg, cv::Mat projImg)
+{
+	if (!whitegain_calibrated) return estimateColorJD(camImg, projImg);
+
+	cv::Mat removed = camImg.clone();
+	removed.forEach<cv::Vec3b>([&](cv::Vec3b &c, const int pos[]) -> void {
+		cv::Vec3d cam = (cv::Vec3d)camImg.at<cv::Vec3b>(pos[0], pos[1]);
+		cv::Vec3d proj = (cv::Vec3d)projImg.at<cv::Vec3b>(pos[0], pos[1]);
+		cv::Vec3d wgain = (cv::Vec3d)whiteGain.at<cv::Vec3d>(pos[0], pos[1]);
+
+		auto C = linearizeCam(cam);
+		auto Cp = reflectProCam(linearizePro(proj), cv::Vec3d(1.0, 1.0, 1.0));
+		//	配光特性を考慮
+		Cp = cv::Vec3d(wgain[0] * Cp[0], wgain[1] * Cp[1], wgain[2] * Cp[2]);
+
+		cv::Mat R = reflectanceJD(C, Cp);
+		auto C_est = reflectProCam(cv::Vec3d(1, 1, 1), R);
+		auto Ic = gammaCam(C_est);
+
+		c = cv::Vec3b(Ic);
+	});
+
 	return removed;
 }
 
@@ -490,9 +686,9 @@ void ProCamColorCalibrator::testEstimation(FlyCap2CVWrapper & flycap, cv::Rect p
 			cv::imshow("cv_camera", whiteImg);
 			cv::waitKey(10);
 			//	3個のモデル式で推定
-			auto imgDiag = estimateColorDiag(camImg, projImgCam);
-			auto imgPCA = estimateColorPCA(camImg, projImgCam);
-			auto imgJD = estimateColorJD(camImg, projImgCam);
+			auto imgDiag = estimateColor2Diag(camImg, projImgCam);
+			auto imgPCA = estimateColor2PCA(camImg, projImgCam);
+			auto imgJD = estimateColor2JD(camImg, projImgCam);
 			//	白色光下画像との誤差算出
 			cv::Mat diffDiag, diffPCA, diffJD;
 			diffDiag = psudoColordDist(distance(whiteImg, imgDiag), 0, 50);
@@ -546,7 +742,7 @@ cv::Mat ProCamColorCalibrator::distance(cv::Mat img1, cv::Mat img2)
 		auto c1 = img1f.at<cv::Vec3d>(pos[0], pos[1]);
 		auto c2 = img2f.at<cv::Vec3d>(pos[0], pos[1]);
 		auto cd = c1 - c2;
-		c = sqrtf(cd[0] * cd[0] + cd[1] * cd[1] + cd[2] * cd[2]);
+		c = sqrt(cd.dot(cd));
 	});
 
 	return diff;

@@ -135,6 +135,12 @@ void ControlWindow::drawGUI(void)
 						calibrator.calibrate(flycap, cv::Rect(pos, projectorWindow.projSize), cc);
 						projectorWindow.show();
 					}
+					if (ImGui::Button("Get White Gain")) {
+						projectorWindow.hide();
+						cv::Point pos(projectorWindow.winPos[0], projectorWindow.winPos[1]);
+						calibrator.calibrateWhite(flycap, cv::Rect(pos, projectorWindow.projSize), cc);
+						projectorWindow.show();
+					}
 				}
 			}
 		}
@@ -188,7 +194,7 @@ void ControlWindow::drawGUI(void)
 				cv::Point pos(projectorWindow.winPos[0], projectorWindow.winPos[1]);
 				//	テクスチャ画像読み込み
 				auto texture = cv::imread(testTexturePath);
-				int backlight = 50;
+				int backlight = 100;
 				texture.forEach<cv::Vec3b>([&](cv::Vec3b &c, const int* pos)->void {
 					c[0] = MAX(backlight, c[0]);
 					c[1] = MAX(backlight, c[1]);
