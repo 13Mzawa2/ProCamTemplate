@@ -117,7 +117,6 @@ void ProCamColorCalibrator::calibrateWhite(FlyCap2CVWrapper & flycap, cv::Rect p
 	//	setup
 	cv::Mat camImg;
 	cv::Mat projImg(projArea.size(), CV_8UC3, cv::Scalar::all(255));
-	cv::namedWindow("cv_camera");
 	cv::namedWindow("cv_projector", cv::WINDOW_FREERATIO);
 	cv::moveWindow("cv_projector", projArea.x, projArea.y);
 	cv::setWindowProperty("cv_projector", cv::WND_PROP_FULLSCREEN, cv::WINDOW_FULLSCREEN);
@@ -188,7 +187,6 @@ void ProCamColorCalibrator::calibrateWhite(FlyCap2CVWrapper & flycap, cv::Rect p
 	cv::waitKey();
 
 	//	生成したウィンドウを閉じる
-	cv::destroyWindow("cv_camera");
 	cv::destroyWindow("cv_projector");
 	cv::destroyWindow("white gain");
 }
