@@ -426,6 +426,19 @@ cv::Mat ProCamColorCalibrator::estimateColorJD(cv::Mat camImg, cv::Mat projImg)
 	return removed;
 }
 
+cv::Mat ProCamColorCalibrator::calcProjColorFromCam(cv::Mat projImg)
+{
+	cv::Mat proj_c = projImg.clone();
+	proj_c.forEach<cv::Vec3b>([&](cv::Vec3b &c, const int pos[]) -> void {
+		cv::Vec3d proj = (cv::Vec3d)projImg.at<cv::Vec3b>(pos[0], pos[1]);
+		auto P = linearizePro(proj);
+		auto Cp = reflectProCam(P, cv::Vec3d(1., 1., 1.));
+		auto Ic = gammaCam(Cp);
+		c = cv::Vec3b(Ic);
+	});
+	return proj_c;
+}
+
 void ProCamColorCalibrator::estimate(FlyCap2CVWrapper & flycap, cv::Rect projArea, cv::Mat projImg, cv::Mat projImgCam, int estMode)
 {
 	//	setup
@@ -493,11 +506,13 @@ void ProCamColorCalibrator::testEstimation(FlyCap2CVWrapper & flycap, cv::Rect p
 			auto imgDiag = estimateColorDiag(camImg, projImgCam);
 			auto imgPCA = estimateColorPCA(camImg, projImgCam);
 			auto imgJD = estimateColorJD(camImg, projImgCam);
+			//	カメラから見た投影像の推定
+			auto imgCp = calcProjColorFromCam(projImgCam);
 			//	白色光下画像との誤差算出
 			cv::Mat diffDiag, diffPCA, diffJD;
-			diffDiag = psudoColordDist(distance(whiteImg, imgDiag), 0, 50);
-			diffPCA = psudoColordDist(distance(whiteImg, imgPCA), 0, 50);
-			diffJD = psudoColordDist(distance(whiteImg, imgJD), 0, 50);
+			diffDiag = psudoColordDist(distance(whiteImg, imgDiag), 0, 40);
+			diffPCA = psudoColordDist(distance(whiteImg, imgPCA), 0, 40);
+			diffJD = psudoColordDist(distance(whiteImg, imgJD), 0, 40);
 
 			//	推定結果の表示
 			cv::imshow("diag", imgDiag);
@@ -527,6 +542,7 @@ void ProCamColorCalibrator::testEstimation(FlyCap2CVWrapper & flycap, cv::Rect p
 			cv::imwrite("./data/original.png", camImg);
 			cv::imwrite("./data/gt.png", whiteImg);
 			cv::imwrite("./data/proj.png", projImgCam);
+			cv::imwrite("./data/proj_c.png", imgCp);
 		}
 	}
 

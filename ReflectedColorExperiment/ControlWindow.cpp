@@ -2,7 +2,7 @@
 
 
 const std::string ControlWindow::colorProfilePath = "./data/colorProfile.xml";
-const std::string ControlWindow::testTexturePath = "./data/xyColor.png";
+const std::string ControlWindow::testTexturePath = "./data/beads.jpg";
 const std::string ControlWindow::vertexShaderDir = "./VertexShader.glsl";
 const std::string ControlWindow::removerShaderDir = "./Frag_Remover.glsl";
 const std::string ControlWindow::generatorShaderDir = "./Frag_Generator.glsl";
