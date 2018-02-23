@@ -167,6 +167,7 @@ void ProCamColorCalibrator::calibrateWhite(FlyCap2CVWrapper & flycap, cv::Rect p
 	//	patches = R * lights -> patches_t = lights_t * R_t
 	cv::solve(lightMat.t(), patchMat.t(), Rt, cv::DECOMP_SVD);
 	R = Rt.t();
+	//R = Rt;
 
 	//	カメラ内の反射率を一定として，白色ゲインを求める
 	whiteGain = cv::Mat(imgW.size(), CV_64FC3);
