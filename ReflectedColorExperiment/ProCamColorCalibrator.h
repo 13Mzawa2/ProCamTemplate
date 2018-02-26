@@ -147,6 +147,9 @@ public:
 	cv::Mat estimateColor2PCA(cv::Mat camImg, cv::Mat projImg);
 	cv::Mat estimateColor2JD(cv::Mat camImg, cv::Mat projImg);
 
+	//	カメラから見たプロジェクタ像を算出
+	cv::Mat calcProjColorFromCam(cv::Mat projImg);
+
 	//	テスト用
 	void estimate(FlyCap2CVWrapper &flycap, cv::Rect projArea, cv::Mat projImg, cv::Mat projImgCam, int estMode = 0);
 	void testEstimation(FlyCap2CVWrapper &flycap, cv::Rect projArea, cv::Mat projImg, cv::Mat projImgCam);
