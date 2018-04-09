@@ -155,6 +155,7 @@ public:
 	void testEstimation(FlyCap2CVWrapper &flycap, cv::Rect projArea, cv::Mat projImg, cv::Mat projImgCam);
 	cv::Mat distance(cv::Mat img1, cv::Mat img2);
 	cv::Mat psudoColordDist(cv::Mat distImg, double vmin = 0, double vmax = 1);
+	void testEstimationPoints(FlyCap2CVWrapper &flycap, cv::Rect projArea, std::vector<cv::Point> points, cv::Size blockSize);
 
 	//	キャリブレーション結果の書き出し
 	//

@@ -31,6 +31,7 @@ void ControlWindow::update(void)
 		fb.remove(cameraImg, projectorWindow.projImg, drawImg, removemode);
 	}
 
+	//	ColorCheckerのクロッピング
 	if (clopping_mode) {
 		//	現在地を取得
 		cv::Vec2d p;
@@ -56,6 +57,26 @@ void ControlWindow::update(void)
 				cv::circle(drawImg, cc.corners[i], 5, cv::Scalar(0, 255, 0));
 			}
 			cv::line(drawImg, cc.corners.back(), cv::Point(p[0], p[1]), cv::Scalar(0, 255, 0));
+		}
+	}
+
+	//	精度測定位置を決める
+	if (check_mode) {
+		//	現在地を取得
+		cv::Point2d p;
+		glfwGetCursorPos(this->window, &p.x, &p.y);
+		//	ボタンを離した瞬間
+		if (glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_RIGHT) == GLFW_PRESS) {
+			if (glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_RIGHT) == GLFW_RELEASE) {
+				//	現在地を保存
+				clickPoints.push_back(p);
+			}
+		}
+		//	描画
+		if (clickPoints.size()>0) {
+			for (auto pp : clickPoints) {
+				cv::rectangle(drawImg, cv::Rect(pp, cv::Size(clickSize, clickSize)), cv::Scalar(255, 255, 0));
+			}
 		}
 	}
 }
@@ -211,6 +232,35 @@ void ControlWindow::drawGUI(void)
 				projectorWindow.show();
 				projectorWindow.projImg = cv::Mat(projectorWindow.projSize, CV_8UC3, cv::Scalar::all(255));
 			}
+			if (ImGui::CollapsingHeader("point-wise evaluation")) {
+				ImGui::Text(
+					"Please right click at the evaluation points.\n"
+					" ");
+				if (ImGui::Button("Start selecting")) {
+					//	評価位置の初期化
+					clickPoints.clear();
+					check_mode = true;
+				}
+				if (check_mode) {
+					ImGui::SameLine();
+					ImGui::Text("Now selecting...");
+					if (ImGui::Button("Undo") && clickPoints.size()>0) {
+						//	直近の評価位置の削除
+						clickPoints.pop_back();
+					}
+					if (ImGui::Button("End")) {
+						//	現在選択中の評価位置で評価を実行
+						check_mode = false;
+						if (!clickPoints.empty()) {
+							projectorWindow.hide();
+							cv::Point pos(projectorWindow.winPos[0], projectorWindow.winPos[1]);
+							calibrator.testEstimationPoints(flycap, cv::Rect(pos, projectorWindow.projSize), clickPoints, cv::Size(clickSize, clickSize));
+							projectorWindow.show();
+						}
+					}
+					ImGui::SliderInt("Size", &clickSize, 1, 30);
+				}
+			}
 		}
 		ImGui::End();
 	}
@@ -234,6 +284,7 @@ void ControlWindow::drawGUI(void)
 				procam_mode = true;
 			}
 		}
+
 		ImGui::End();
 	}
 

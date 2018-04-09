@@ -33,8 +33,15 @@ public:
 	bool show_calib_popup = false;
 	bool show_fb_popup = false;
 	bool clopping_mode = false;
+	bool check_mode = false;
 	bool procam_mode = false;
 	int removemode = 0;
+
+	//===========================================
+	//	Global Variables
+	//===========================================
+	std::vector<cv::Point> clickPoints;
+	int clickSize = 1;
 
 	//===========================================
 	//	Import file paths

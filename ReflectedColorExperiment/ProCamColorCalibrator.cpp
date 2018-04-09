@@ -796,6 +796,106 @@ cv::Mat ProCamColorCalibrator::psudoColordDist(cv::Mat distImg, double vmin, dou
 	return img;
 }
 
+//	points配列の位置で「キャリブレーションに用いられなかった色」の精度を確かめる
+void ProCamColorCalibrator::testEstimationPoints(FlyCap2CVWrapper & flycap, cv::Rect projArea, std::vector<cv::Point> points, cv::Size blockSize)
+{
+	//	setup
+	cv::Mat camImg, projImg;
+	cv::namedWindow("cv_camera");
+	cv::namedWindow("cv_projector", cv::WINDOW_FREERATIO);
+	cv::moveWindow("cv_projector", projArea.x, projArea.y);
+	cv::setWindowProperty("cv_projector", cv::WND_PROP_FULLSCREEN, cv::WINDOW_FULLSCREEN);
+
+	cv::Mat whitelight(projArea.size(), CV_8UC3, cv::Scalar::all(255));
+
+	//	テスト色光を作成&撮影
+	std::vector<double> projInput = { 
+		31., 63., 95., 127., 159., 191., 223., 255. };		//	ここを変える
+	std::vector<cv::Vec3d> projColors;
+	std::vector<std::vector<cv::Vec3d>> patchColors;
+	int idx = 0;
+	for (auto b : projInput) {
+		for (auto g : projInput) {
+			for (auto r : projInput) {
+				//	投影
+				//	描画命令から実際に描画されるまでは数フレーム遅れるため，
+				//	正しい描画のために複数回描画命令を出す
+				projImg = cv::Mat(projArea.size(), CV_8UC3, cv::Scalar(b, g, r));
+				for (int i = 0; i<3; i++) {
+					cv::imshow("cv_projector", projImg);
+					cv::waitKey(30);
+				}
+				//	撮影
+				camImg = flycap.readImage();
+				//	指定した位置の色を取得
+				std::vector<cv::Vec3d> pcolors;
+				for (auto p : points) {
+					cv::Mat mean;
+					auto pmat = camImg(cv::Rect(p, blockSize));
+					pmat.convertTo(mean, CV_64FC3);
+					cv::reduce(mean, mean, 0, cv::REDUCE_AVG);
+					cv::reduce(mean, mean, 1, cv::REDUCE_AVG);
+					auto c = mean.at<cv::Vec3d>(0);
+					auto p = cv::Vec3d(b, g, r);
+					//	記録
+					pcolors.push_back(c);
+				}
+				//	描画
+				auto camImg_draw = camImg.clone();
+				for (auto p : points) {
+					cv::rectangle(camImg_draw, cv::Rect(p, blockSize), cv::Scalar(255, 255, 0));
+				}
+				cv::imshow("cv_camera", camImg_draw);
+				cv::waitKey(15);
+				//	記録
+				patchColors.push_back(pcolors);
+				projColors.push_back(cv::Vec3d(b, g, r));
+
+			}
+		}
+	}
+
+	//	csvに保存
+	std::ofstream ofs("./data/estimation.csv");
+	if (ofs.is_open()) {
+		//	タイトル行
+		ofs << "lightB,lightG,lightR,";
+		for (int i = 0; i < points.size(); i++) {
+			ofs << "P" + std::to_string(i) + "_CamB,";
+			ofs << "P" + std::to_string(i) + "_CamG,";
+			ofs << "P" + std::to_string(i) + "_CamR,";
+			ofs << "P" + std::to_string(i) + "_Est_diagB,";
+			ofs << "P" + std::to_string(i) + "_Est_diagG,";
+			ofs << "P" + std::to_string(i) + "_Est_diagR,";
+			ofs << "P" + std::to_string(i) + "_Est_pcaB,";
+			ofs << "P" + std::to_string(i) + "_Est_pcaG,";
+			ofs << "P" + std::to_string(i) + "_Est_pcaR,";
+			ofs << "P" + std::to_string(i) + "_Est_jdB,";
+			ofs << "P" + std::to_string(i) + "_Est_jdG,";
+			ofs << "P" + std::to_string(i) + "_Est_jdR,";
+		}
+		ofs << std::endl;
+
+		//	データ
+		for (int lightNum = 0; lightNum < projColors.size(); lightNum++) {
+			auto Ip = projColors[lightNum];
+			ofs << Ip[0] << "," << Ip[1] << "," << Ip[2] << ",";
+			for (int patchNum = 0; patchNum < points.size(); patchNum++) {
+				auto Ic = patchColors[lightNum][patchNum];
+				ofs << Ic[0] << "," << Ic[1] << "," << Ic[2] << ",";
+				auto Ic_diag = estimateColorDiag(Ic, Ip);
+				ofs << Ic_diag[0] << "," << Ic_diag[1] << "," << Ic_diag[2] << ",";
+				auto Ic_pca = estimateColorPCA(Ic, Ip);
+				ofs << Ic_pca[0] << "," << Ic_pca[1] << "," << Ic_pca[2] << ",";
+				auto Ic_jd = estimateColorJD(Ic, Ip);
+				ofs << Ic_jd[0] << "," << Ic_jd[1] << "," << Ic_jd[2] << ",";
+			}
+			ofs << std::endl;
+		}
+
+	}
+}
+
 void ProCamColorCalibrator::writeCSV(cv::String path, std::vector<std::vector<cv::Vec3d>> _camColors, std::vector<cv::Vec3d> _projColors)
 {
 	std::ofstream ofs(path);
