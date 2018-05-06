@@ -1,4 +1,9 @@
 #pragma once
+/*******************************
+FlyCapture2 with OpenCV Wrapper
+
+*******************************/
+
 
 #ifdef _DEBUG
 #define FC2_EXT "d.lib"

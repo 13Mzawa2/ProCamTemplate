@@ -119,7 +119,7 @@ cv::Mat FlyCap2CVWrapper::readImage()
 	if (flycamError != PGRERROR_OK)
 	{
 		std::cout << "capture error" << std::endl;
-		return cvImg;
+		return cvImg.clone();
 	}
 	// convert to bgr
 	flyImg.Convert(FlyCapture2::PIXEL_FORMAT_BGR, &bgrImg);
@@ -176,12 +176,12 @@ void FlyCap2CVWrapper::open()
 	}
 	//	Disable Auto changes
 	autoFrameRate(false, 120.f);
-	autoWhiteBalance(false, 690, 670);
+	autoWhiteBalance(false, 725, 604);
 	//autoWhiteBalance(false, 512, 512);
 	autoExposure(false, -0.67);
 	autoSaturation(false, 100.0f);
 	autoShutter(false, 8.323f);
-	autoGain(false, 8.6);
+	autoGain(false, 9.5);
 
 	flycamError = flycam.StartCapture();
 	if (flycamError == PGRERROR_ISOCH_BANDWIDTH_EXCEEDED)
